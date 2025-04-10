@@ -1,0 +1,494 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+// Main container
+.quiz {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  
+  @media (max-width: 640px) {
+    padding: 12px;
+  }
+}
+
+// Admin panel and buttons
+.adminPanel {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.actionButton {
+  min-width: 100px;
+  height: 32px;
+  
+  &.primary {
+    background-color: $ms-color-themePrimary;
+    color: $ms-color-white;
+    border: none;
+    min-width: 120px;
+    padding: 0 16px;
+    
+    &:hover {
+      background-color: $ms-color-themeDark;
+    }
+    
+    &:active {
+      background-color: $ms-color-themeDarker;
+    }
+  }
+  
+  &.secondary {
+    background-color: $ms-color-neutralLighter;
+    color: $ms-color-neutralPrimary;
+    border: 1px solid $ms-color-neutralTertiaryAlt;
+    min-width: 120px;
+    padding: 0 16px;
+    
+    &:hover {
+      background-color: $ms-color-neutralLight;
+      border-color: $ms-color-neutralTertiary;
+    }
+    
+    &:active {
+      background-color: $ms-color-neutralQuaternaryAlt;
+    }
+  }
+  
+  &.icon {
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    
+    &:hover {
+      background-color: $ms-color-neutralLight;
+    }
+  }
+}
+
+// Command bar
+.commandBar {
+  margin-bottom: 16px;
+  border-radius: 2px;
+  background-color: #f8f8f8;
+  border: 1px solid $ms-color-neutralLight;
+  
+  :global(.ms-CommandBar) {
+    padding: 4px;
+  }
+  
+  :global(.ms-Button) {
+    min-width: 100px;
+    height: 32px;
+    
+    &:hover {
+      background-color: $ms-color-neutralLight;
+    }
+  }
+}
+
+// Category filter
+.categoryFilter {
+  margin-bottom: 20px;
+  max-width: 100%;
+  overflow-x: auto;
+  
+  :global(.ms-Pivot) {
+    border-bottom: 1px solid $ms-color-neutralLight;
+  }
+}
+
+// Questions containers
+.questionsContainer {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Question card
+.questionCard {
+  padding: 16px;
+  margin-bottom: 16px;
+  background-color: $ms-color-white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 1px solid $ms-color-neutralLight;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  .questionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  
+  .questionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    flex: 1;
+  }
+  
+  .questionCounter {
+    color: $ms-color-neutralSecondary;
+    white-space: nowrap;
+  }
+  
+  .questionInfo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: $ms-color-neutralSecondary;
+  }
+  
+  .questionTag {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: $ms-color-neutralLighter;
+    border-radius: 2px;
+    font-size: 12px;
+    color: $ms-color-neutralSecondary;
+    margin-right: 4px;
+  }
+  
+  .actionButtons {
+    display: flex;
+    gap: 4px;
+  }
+}
+
+.questionContent {
+  margin-top: 16px;
+}
+
+// Question list item
+.questionListItem {
+  background-color: $ms-color-white;
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+  
+  &:nth-child(odd) {
+    background-color: $ms-color-neutralLighterAlt;
+  }
+  
+  &:hover {
+    border-color: $ms-color-neutralTertiary;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .itemHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .itemTitle {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .itemMeta {
+    margin-top: 4px;
+    color: $ms-color-neutralSecondary;
+    font-size: 12px;
+  }
+}
+
+// Dialog and form styles
+.dialogContent {
+  padding: 0 24px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.editQuestionsDialog {
+  :global(.ms-Dialog-main) {
+    max-width: 1000px;
+    min-width: 800px;
+    
+    @media (max-width: 1024px) {
+      min-width: 90vw;
+      max-width: 90vw;
+    }
+  }
+}
+
+.formWrapper {
+  background-color: $ms-color-white;
+  border-radius: 4px;
+}
+
+.formSection {
+  margin-bottom: 16px;
+}
+
+.formSectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.formButtons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  gap: 8px;
+  flex-wrap: wrap;
+  
+  @media (max-width: 640px) {
+    justify-content: center;
+  }
+}
+
+// Choice inputs
+.choiceRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 8px;
+  background-color: $ms-color-neutralLighterAlt;
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 4px;
+  gap: 8px;
+  
+  &:hover {
+    background-color: $ms-color-neutralLighter;
+  }
+  
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+  }
+}
+
+.choicesContainer {
+  background-color: $ms-color-neutralLighterAlt;
+  padding: 16px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  border: 1px solid $ms-color-neutralLight;
+}
+
+.choiceGroup {
+  margin-top: 12px;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.shortAnswerContainer {
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e6e6e6;
+  margin-top: 12px;
+}
+
+// Forms
+.addQuestionForm {
+  background-color: $ms-color-white;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.importQuestionsForm {
+  background-color: $ms-color-white;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  
+  .importOptions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  
+  .importFileSection {
+    margin: 16px 0;
+    padding: 16px;
+    border: 1px dashed $ms-color-neutralTertiaryAlt;
+    border-radius: 4px;
+    background-color: $ms-color-neutralLighterAlt;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .nativeFileInput {
+    padding: 8px 0;
+    max-width: 100%;
+  }
+}
+
+// Progress and pagination
+.progressBar {
+  margin-bottom: 16px;
+}
+
+.paginationContainer {
+  margin: 24px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.submitContainer {
+  text-align: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+// Results container
+.resultsContainer {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  
+  .resultsTitle {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  
+  .scoreCard {
+    background-color: $ms-color-white;
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    
+    .scoreCircle {
+      width: 120px;
+      height: 120px;
+      border-radius: 60px;
+      background-color: $ms-color-themePrimary;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      
+      .scoreValue {
+        font-size: 36px;
+        font-weight: 700;
+      }
+    }
+    
+    .scoreDetails {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    
+    .resultMessage {
+      font-size: 16px;
+      font-style: italic;
+      margin-bottom: 16px;
+    }
+  }
+  
+  .retakeButtonContainer {
+    margin-top: 24px;
+  }
+}
+
+// State displays
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  background-color: $ms-color-neutralLighterAlt;
+  border-radius: 4px;
+  margin: 20px 0;
+  border: 1px solid $ms-color-neutralLight;
+}
+
+// Property pane customization
+.propertyPaneContainer {
+  background-color: $ms-color-white;
+  padding: 16px;
+  border-radius: 4px;
+}
+
+// Filters and search
+.filtersBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+  
+  .searchBox {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+  }
+  
+  .filterDropdown {
+    min-width: 150px;
+  }
+}
+
+// Status indicators
+.statusBar {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background-color: $ms-color-neutralLighterAlt;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  
+  &.info {
+    background-color: $ms-color-neutralLighter;
+    border-left: 4px solid $ms-color-themePrimary;
+  }
+  
+  &.success {
+    background-color: #dff6dd;
+    border-left: 4px solid #107c10;
+  }
+  
+  &.warning {
+    background-color: #fff4ce;
+    border-left: 4px solid #ffaa44;
+  }
+  
+  &.error {
+    background-color: #fde7e9;
+    border-left: 4px solid #d13438;
+  }
+}

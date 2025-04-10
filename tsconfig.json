@@ -1,0 +1,39 @@
+{
+  "extends": "./node_modules/@microsoft/rush-stack-compiler-4.7/includes/tsconfig-web.json",
+  "compilerOptions": {
+    "target": "es2019",                      // Use a modern target; change to "es5" if needed for older browsers.
+    "forceConsistentCasingInFileNames": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "jsx": "react",
+    "declaration": true,
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "outDir": "lib",
+    "inlineSources": false,
+    "strict": true,                          // Enable all strict type checking options.
+    "noImplicitAny": true,
+    "esModuleInterop": true,                 // Enable default import interoperability.
+    "allowSyntheticDefaultImports": true,    // Allow default imports for modules that don't have one.
+    "typeRoots": [
+      "./node_modules/@types",
+      "./node_modules/@microsoft"
+    ],
+    "types": [
+      "webpack-env"
+    ],
+    "lib": [
+      "dom",
+      "es2019",
+      "es2020.promise",
+      "es2020.string",
+      "es2020.symbol.wellknown",
+      "es2021.weakref"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ]
+}
