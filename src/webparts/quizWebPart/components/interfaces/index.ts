@@ -15,6 +15,7 @@ export interface IChoice {
 export interface IQuizQuestion {
   id: number;
   title: string;
+  description?: string;  // New field for detailed question text
   category: string;
   type: QuestionType;
   choices: IChoice[];
@@ -25,6 +26,8 @@ export interface IQuizQuestion {
   explanation?: string; // Explanation for the answer
   lastModified?: string; // ISO date string for tracking changes
   caseSensitive?: boolean; // For short answer, whether it's case sensitive
+  userAnswer?: string | string[];  // Added for tracking user's answer for detailed results
+  isCorrect?: boolean;  // Added for tracking if the question was answered correctly
 }
 
 export interface IQuizState {
@@ -54,6 +57,39 @@ export interface IQuizState {
   adminView?: string;
   submitRequireAllAnswered?: boolean;
   showEditQuestionsDialog: boolean;
+  // New fields for detailed results
+  detailedResults?: IDetailedQuizResults;
+  // New field for progress tracking
+  quizProgress?: IQuizProgress;
+}
+
+// Interface for detailed quiz results
+export interface IDetailedQuizResults {
+  score: number;
+  totalPoints: number;
+  percentage: number;
+  questionResults: IQuestionResult[];
+  timestamp: string;
+}
+
+export interface IQuestionResult {
+  id: number;
+  title: string;
+  userAnswer: string | string[] | undefined;
+  correctAnswer: string | string[] | undefined;
+  isCorrect: boolean;
+  points: number;
+  earnedPoints: number;
+  explanation?: string;
+}
+
+// Interface for progress tracking
+export interface IQuizProgress {
+  currentQuestion: number;
+  totalQuestions: number;
+  answeredQuestions: number;
+  percentage: number;
+  remainingTime?: number;  // For timed quizzes
 }
 
 export interface IQuizResultsProps {
@@ -71,6 +107,8 @@ export interface IQuizResultsProps {
     poor: string;
     success: string;
   };
+  // New field for detailed results
+  detailedResults?: IDetailedQuizResults;
 }
 
 export interface IQuizQuestionProps {
@@ -99,4 +137,12 @@ export interface IImportQuestionsProps {
 export interface IQuestionPreviewProps {
   question: IQuizQuestion;
   onClose: () => void;
+}
+
+export interface IQuizProgressTrackerProps {
+  progress: IQuizProgress;
+  showPercentage?: boolean;
+  showNumbers?: boolean;
+  showIcon?: boolean;
+  showTimer?: boolean;
 }

@@ -25,6 +25,7 @@ import {
   PivotItem,
   Toggle
 } from '@fluentui/react';
+import { RichText } from "@pnp/spfx-controls-react/lib/RichText";
 import styles from './Quiz.module.scss';
 
 // Icons for buttons
@@ -63,7 +64,10 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
   const [validationError, setValidationError] = useState('');
   const [activeTab, setActiveTab] = useState('question');
   const [caseSensitive, setCaseSensitive] = useState(false); // For short answer questions
-  
+
+  // For rich text description
+  const [description, setDescription] = useState<string>('');
+
   // Initialize form if editing an existing question
   useEffect(() => {
     if (initialQuestion) {
@@ -71,16 +75,21 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       setCategory(initialQuestion.category);
       setQuestionType(initialQuestion.type);
       setChoices([...initialQuestion.choices]);
-      
+
+      // Set description if it exists
+      if (initialQuestion.description) {
+        setDescription(initialQuestion.description);
+      }
+
       // Set correct choice ID for multiple choice
-      if (initialQuestion.type === QuestionType.MultipleChoice || 
-          initialQuestion.type === QuestionType.TrueFalse) {
+      if (initialQuestion.type === QuestionType.MultipleChoice ||
+        initialQuestion.type === QuestionType.TrueFalse) {
         const correct = initialQuestion.choices.find(c => c.isCorrect);
         if (correct) {
           setCorrectChoiceId(correct.id);
         }
       }
-      
+
       // Set short answer text
       if (initialQuestion.type === QuestionType.ShortAnswer && initialQuestion.correctAnswer) {
         setShortAnswerText(initialQuestion.correctAnswer);
@@ -89,12 +98,12 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
           setCaseSensitive(initialQuestion.caseSensitive);
         }
       }
-      
+
       // Set explanation and points
       if (initialQuestion.explanation) {
         setExplanation(initialQuestion.explanation);
       }
-      
+
       if (initialQuestion.points) {
         setPoints(initialQuestion.points.toString());
       }
@@ -116,25 +125,31 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     }
   };
 
+  // Function to handle rich text changes - must return the string
+  const handleDescriptionChange = (newText: string): string => {
+    setDescription(newText);
+    return newText;
+  };
+
   const handleSubmit = (): void => {
     // Validation
     if (!title.trim()) {
       setValidationError('Question title is required.');
       return;
     }
-    
+
     if (!category && !newCategory) {
       setValidationError('Please select or enter a category.');
       return;
     }
-    
+
     // Validate based on question type
     if (questionType === QuestionType.MultipleChoice || questionType === QuestionType.TrueFalse) {
       if (choices.filter(c => c.text.trim()).length < 2) {
         setValidationError('At least 2 valid choices are required.');
         return;
       }
-      
+
       if (!choices.some(c => c.isCorrect)) {
         setValidationError('Please mark at least one choice as correct.');
         return;
@@ -144,7 +159,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
         setValidationError('At least 2 valid choices are required.');
         return;
       }
-      
+
       if (!choices.some(c => c.isCorrect)) {
         setValidationError('Please mark at least one choice as correct.');
         return;
@@ -167,6 +182,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     const newQuestion: IQuizQuestion = {
       id: initialQuestion ? initialQuestion.id : Date.now(),
       title,
+      description: description, // Add the rich text description
       category: category === 'new' ? newCategory : category,
       type: questionType,
       choices: choices.filter(c => c.text.trim()), // Filter out empty choices
@@ -186,6 +202,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     const previewQuestion: IQuizQuestion = {
       id: initialQuestion ? initialQuestion.id : Date.now(),
       title,
+      description: description, // Add the rich text description
       category: category === 'new' ? newCategory : category,
       type: questionType,
       choices: choices.filter(c => c.text.trim()), // Filter out empty choices
@@ -213,6 +230,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     setPoints('1');
     setCaseSensitive(false);
     setValidationError('');
+    setDescription('');
   };
 
   // Generate category dropdown options
@@ -278,7 +296,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
             </Stack>
           </div>
         );
-        
+
       case QuestionType.TrueFalse:
         return (
           <div className={styles.choicesContainer}>
@@ -299,7 +317,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
             />
           </div>
         );
-        
+
       case QuestionType.MultiSelect: {
         return (
           <div className={styles.choicesContainer}>
@@ -341,7 +359,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
           </div>
         );
       }
-        
+
       case QuestionType.ShortAnswer:
         return (
           <div className={styles.choicesContainer}>
@@ -362,7 +380,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
             />
           </div>
         );
-        
+
       default:
         return null;
     }
@@ -382,9 +400,9 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       }}
     >
       {validationError && (
-        <MessageBar 
+        <MessageBar
           messageBarType={MessageBarType.error}
-          isMultiline={false} 
+          isMultiline={false}
           dismissButtonAriaLabel="Close"
           styles={{ root: { marginBottom: 15 } }}
         >
@@ -392,8 +410,8 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
         </MessageBar>
       )}
 
-      <Pivot 
-        selectedKey={activeTab} 
+      <Pivot
+        selectedKey={activeTab}
         onLinkClick={(item) => item && setActiveTab(item.props.itemKey || 'question')}
         styles={{ root: { marginBottom: 20 } }}
       >
@@ -404,13 +422,27 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       {activeTab === 'question' && (
         <Stack tokens={stackTokens} className={styles.formWrapper}>
           <TextField
-            label="Question"
+            label="Question Title"
             required
             value={title}
             onChange={(_e, value) => setTitle(value || '')}
-            placeholder="Enter your question here"
+            placeholder="Enter your question title here"
             styles={{ fieldGroup: { width: '100%' } }}
           />
+
+          <div className={styles.formSection}>
+            <Text className={styles.formSectionTitle}>Question Description (Optional)</Text>
+            <div className={styles.richTextEditor}>
+              <RichText
+                value={description}
+                onChange={handleDescriptionChange}
+                isEditMode={true}
+                placeholder="Add detailed question text, instructions, or context here..."
+              />
+
+
+            </div>
+          </div>
 
           <Dropdown
             label="Question Type"
@@ -420,7 +452,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
               if (option) {
                 const newType = option.key as QuestionType;
                 setQuestionType(newType);
-                
+
                 // Reset choices based on type
                 if (newType === QuestionType.TrueFalse) {
                   setChoices([

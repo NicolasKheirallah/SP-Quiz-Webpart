@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { IQuizProps } from './IQuizProps';
 import { IQuizState, IQuizQuestion, QuestionType } from './interfaces';
+import { IDetailedQuizResults, IQuestionResult } from './interfaces';
+import QuizProgressTracker from './QuizProgressTracker';
 import { WebPartTitle } from "@pnp/spfx-controls-react/lib/WebPartTitle";
 import { v4 as uuidv4 } from 'uuid';
 import QuizQuestion from './QuizQuestion';
@@ -22,11 +24,9 @@ import {
   DefaultButton,
   Pivot,
   PivotItem,
-  ProgressIndicator,
   Dialog,
   DialogType,
   DialogFooter,
-  mergeStyles,
   IIconProps,
   IStackStyles,
   Checkbox,
@@ -51,10 +51,6 @@ const mainContainerStyles: IStackStyles = {
     margin: '0 auto'
   }
 };
-
-const progressIndicatorClass = mergeStyles({
-  marginBottom: '16px'
-});
 
 const stackTokens: IStackTokens = {
   childrenGap: 12
@@ -457,77 +453,149 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   private handlePageChange = (page: number): void => {
     this.setState({ currentPage: page });
   }
+  private prepareDetailedResults = (
+    questions: IQuizQuestion[],
+    score: number,
+    totalPoints: number
+  ): IDetailedQuizResults => {
+    // Calculate percentage
+    const percentage = Math.round((score / totalPoints) * 100);
+    
+    // Prepare question-by-question results
+    const questionResults: IQuestionResult[] = questions.map(question => {
+      // Skip questions that weren't answered
+      if (question.selectedChoice === undefined) {
+        return {
+          id: question.id,
+          title: question.title,
+          userAnswer: undefined,
+          correctAnswer: this.getCorrectAnswerText(question),
+          isCorrect: false,
+          points: question.points || 1,
+          earnedPoints: 0,
+          explanation: question.explanation
+        };
+      }
+      
+      // Determine if the question was answered correctly
+      const isCorrect = this.isQuestionCorrect(question);
+      const points = question.points || 1;
+      
+      return {
+        id: question.id,
+        title: question.title,
+        userAnswer: question.selectedChoice,
+        correctAnswer: this.getCorrectAnswerText(question),
+        isCorrect,
+        points,
+        earnedPoints: isCorrect ? points : 0,
+        explanation: question.explanation
+      };
+    });
+    
+    return {
+      score,
+      totalPoints,
+      percentage,
+      questionResults,
+      timestamp: new Date().toISOString()
+    };
+  };
+  
+  // Helper method to get correct answer text for display
+  private getCorrectAnswerText = (question: IQuizQuestion): string | string[] | undefined => {
+    switch (question.type) {
+      case QuestionType.MultipleChoice:
+      case QuestionType.TrueFalse: {
+        const correctChoice = question.choices.find(c => c.isCorrect);
+        return correctChoice ? correctChoice.text : undefined;
+      }
+      case QuestionType.MultiSelect: {
+        const correctChoices = question.choices.filter(c => c.isCorrect).map(c => c.text);
+        return correctChoices.length > 0 ? correctChoices : undefined;
+      }
+      case QuestionType.ShortAnswer:
+        return question.correctAnswer;
+      default:
+        return undefined;
+    }
+  };
 
-  private handleSubmitQuiz = async (): Promise<void> => {
-    this.setState({ isSubmitting: true });
+private handleSubmitQuiz = async (): Promise<void> => {
+  this.setState({ isSubmitting: true });
 
-    try {
-      // Calculate score
-      let score = 0;
-      let totalPoints = 0;
-      let answeredQuestions = 0;
-      const allQuestions = this.state.questions;
-      const savedSuccessfully = await this.saveQuizResults();
+  try {
+    // Calculate score
+    let score = 0;
+    let totalPoints = 0;
+    let answeredQuestions = 0;
+    const allQuestions = this.state.questions;
+    const savedSuccessfully = await this.saveQuizResults();
 
-      allQuestions.forEach(question => {
-        if (question.selectedChoice !== undefined) {
-          answeredQuestions++;
-          const points = question.points || 1;
-          totalPoints += points;
+    allQuestions.forEach(question => {
+      if (question.selectedChoice !== undefined) {
+        answeredQuestions++;
+        const points = question.points || 1;
+        totalPoints += points;
 
-          let isCorrect = false;
+        let isCorrect = false;
 
-          switch (question.type) {
-            case QuestionType.MultipleChoice:
-            case QuestionType.TrueFalse: {
-              const selectedChoice = question.choices.find(c => c.id === question.selectedChoice);
-              isCorrect = !!selectedChoice?.isCorrect;
-              break;
-            }
-            case QuestionType.MultiSelect: {
-              if (Array.isArray(question.selectedChoice)) {
-                const selectedIds = new Set(question.selectedChoice);
-                const correctChoiceIds = question.choices.filter(c => c.isCorrect).map(c => c.id);
-                isCorrect = correctChoiceIds.length > 0 &&
-                  correctChoiceIds.every(id => selectedIds.has(id)) &&
-                  selectedIds.size === correctChoiceIds.length;
-              }
-              break;
-            }
-            case QuestionType.ShortAnswer: {
-              if (typeof question.selectedChoice === 'string' && question.correctAnswer) {
-                isCorrect = question.caseSensitive
-                  ? question.selectedChoice.trim() === question.correctAnswer.trim()
-                  : question.selectedChoice.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
-              }
-              break;
-            }
+        switch (question.type) {
+          case QuestionType.MultipleChoice:
+          case QuestionType.TrueFalse: {
+            const selectedChoice = question.choices.find(c => c.id === question.selectedChoice);
+            isCorrect = !!selectedChoice?.isCorrect;
+            break;
           }
-
-          if (isCorrect) {
-            score += points;
+          case QuestionType.MultiSelect: {
+            if (Array.isArray(question.selectedChoice)) {
+              const selectedIds = new Set(question.selectedChoice);
+              const correctChoiceIds = question.choices.filter(c => c.isCorrect).map(c => c.id);
+              isCorrect = correctChoiceIds.length > 0 &&
+                correctChoiceIds.every(id => selectedIds.has(id)) &&
+                selectedIds.size === correctChoiceIds.length;
+            }
+            break;
+          }
+          case QuestionType.ShortAnswer: {
+            if (typeof question.selectedChoice === 'string' && question.correctAnswer) {
+              isCorrect = question.caseSensitive
+                ? question.selectedChoice.trim() === question.correctAnswer.trim()
+                : question.selectedChoice.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+            }
+            break;
           }
         }
-      });
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        if (isCorrect) {
+          score += points;
+        }
+      }
+    });
 
-      this.setState({
-        showResults: true,
-        score,
-        totalQuestions: answeredQuestions,
-        totalPoints,
-        submissionSuccess: savedSuccessfully,
-        isSubmitting: false
-      });
-    } catch (error) {
-      console.error('Error submitting quiz:', error);
-      this.setState({
-        submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
-        isSubmitting: false
-      });
-    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Prepare detailed results
+    const detailedResults = this.prepareDetailedResults(allQuestions, score, totalPoints);
+
+    this.setState({
+      showResults: true,
+      score,
+      totalQuestions: answeredQuestions,
+      totalPoints,
+      submissionSuccess: savedSuccessfully,
+      isSubmitting: false,
+      detailedResults // Add detailed results to state
+    });
+  } catch (error) {
+    console.error('Error submitting quiz:', error);
+    this.setState({
+      submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
+      isSubmitting: false
+    });
   }
+};
+
 
   private handleRetakeQuiz = (): void => {
     const resetQuestions = this.state.questions.map(q => ({
@@ -565,12 +633,24 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
 
 
   private handleAddQuestionSubmit = (newQuestion: IQuizQuestion): void => {
-    // Create a new array with the new question
-    const updatedQuestions = [...this.props.questions, newQuestion];
-
+    let updatedQuestions: IQuizQuestion[];
+    
+    // Check if this is an update to an existing question (by ID)
+    const existingQuestionIndex = this.props.questions.findIndex(q => q.id === newQuestion.id);
+    
+    if (existingQuestionIndex >= 0) {
+      // It's an edit - replace the existing question
+      updatedQuestions = this.props.questions.map(q => 
+        q.id === newQuestion.id ? newQuestion : q
+      );
+    } else {
+      // It's a new question - add it to the array
+      updatedQuestions = [...this.props.questions, newQuestion];
+    }
+  
     // Update questions through the prop callback
     this.props.updateQuestions(updatedQuestions);
-
+  
     // Update local state
     this.setState({
       showAddQuestionForm: false,
@@ -579,7 +659,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       categories: this.updateCategories(updatedQuestions)
     });
   }
-
+  
 
   private updateCategories(questions: IQuizQuestion[]): string[] {
     const categoriesSet = new Set<string>();
@@ -642,14 +722,20 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   }
 
   private handleDeleteQuestion = (questionId: number): void => {
+    // Filter out just the question with the matching ID
     const updatedQuestions = this.props.questions.filter(q => q.id !== questionId);
+    
+    // Update questions through the prop callback
     this.props.updateQuestions(updatedQuestions);
+    
+    // Update local state
     this.setState({
       questions: updatedQuestions,
       originalQuestions: updatedQuestions,
       categories: this.updateCategories(updatedQuestions)
     });
   }
+  
 
 
 
@@ -768,18 +854,6 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     );
   }
 
-  private renderProgressBar(): JSX.Element {
-    const { questions, answeredQuestions } = this.state;
-    const totalQuestions = questions.length;
-    const percentage = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
-
-    return (
-      <div className={progressIndicatorClass}>
-        <Text>{`${answeredQuestions} of ${totalQuestions} questions answered (${Math.round(percentage)}%)`}</Text>
-        <ProgressIndicator percentComplete={percentage / 100} />
-      </div>
-    );
-  }
 
   // Update the render return type to allow null
   public render(): React.ReactElement<IQuizProps> | undefined {
@@ -798,11 +872,13 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       importDialogOpen,
       showQuestionPreview,
       previewQuestion,
-      showEditQuestionsDialog
+      showEditQuestionsDialog,
+      detailedResults
     } = this.state;
-
+  
     const { questionsPerPage, showProgressIndicator, displayMode } = this.props;
-
+  
+    // If no questions available, show empty state
     if (questions.length === 0) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -811,13 +887,13 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-
+  
           {this.renderAdminPanel()}
-
+  
           <div className={styles.emptyState}>
             <Text variant="large">No questions have been added to this quiz yet.</Text>
             <Text>Use the admin panel to add questions or import from a file.</Text>
-
+  
             {displayMode === DisplayMode.Edit && (
               <Stack horizontal tokens={stackTokens} horizontalAlign="center" style={{ marginTop: '16px' }}>
                 <PrimaryButton
@@ -828,7 +904,8 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
               </Stack>
             )}
           </div>
-
+  
+          {/* Dialogs */}
           {showAddQuestionForm && (
             <AddQuestionDialog
               categories={categories.filter(cat => cat !== 'All')}
@@ -838,7 +915,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
               onPreviewQuestion={this.handlePreviewQuestion}
             />
           )}
-
+  
           {importDialogOpen && (
             <ImportQuestionsDialog
               existingCategories={categories.filter(cat => cat !== 'All')}
@@ -846,24 +923,25 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
               onCancel={this.handleImportQuestionsCancel}
             />
           )}
-
+  
           {this.renderConfirmDialog()}
         </Stack>
       );
     }
-
+  
     // Filter questions by category
     const filteredQuestions = currentCategory === 'All'
       ? questions
       : questions.filter(q => q.category === currentCategory);
-
+  
     // Paginate questions
     const startIndex = (currentPage - 1) * questionsPerPage;
     const paginatedQuestions = filteredQuestions.slice(startIndex, startIndex + questionsPerPage);
-
+  
     const allQuestionsAnswered = questions.length === answeredQuestions;
     const submitEnabled = !submitRequireAllAnswered ? answeredQuestions > 0 : allQuestionsAnswered;
-
+  
+    // Loading state
     if (loading) {
       return (
         <Stack styles={mainContainerStyles} horizontalAlign="center" verticalAlign="center" style={{ minHeight: '200px' }}>
@@ -871,7 +949,8 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         </Stack>
       );
     }
-
+  
+    // Results view
     if (showResults) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -880,7 +959,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-
+  
           <QuizResults
             score={this.state.score}
             totalQuestions={this.state.totalQuestions}
@@ -896,11 +975,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
               poor: this.props.poorScoreMessage,
               success: this.props.resultsSavedMessage
             }}
+            detailedResults={detailedResults}
           />
         </Stack>
       );
     }
-
+  
     // Quiz taker view (or edit mode)
     return (
       <Stack styles={mainContainerStyles}>
@@ -909,9 +989,9 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
           title={this.props.title}
           updateProperty={this.props.updateProperty}
         />
-
+  
         {this.renderAdminPanel()}
-
+  
         {submissionError && (
           <MessageBar
             messageBarType={MessageBarType.error}
@@ -921,7 +1001,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             {submissionError}
           </MessageBar>
         )}
-
+  
         {displayMode === DisplayMode.Edit && (
           <Stack horizontal horizontalAlign="space-between" tokens={stackTokens}>
             <Checkbox
@@ -931,9 +1011,24 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             />
           </Stack>
         )}
-
-        {showProgressIndicator && this.renderProgressBar()}
-
+  
+        {/* Progress Indicator - New feature */}
+        {showProgressIndicator && (
+          <QuizProgressTracker
+            progress={{
+              currentQuestion: currentPage,
+              totalQuestions: filteredQuestions.length,
+              answeredQuestions,
+              percentage: filteredQuestions.length > 0 
+                ? Math.round((answeredQuestions / filteredQuestions.length) * 100) 
+                : 0
+            }}
+            showPercentage={true}
+            showNumbers={true}
+            showIcon={true}
+          />
+        )}
+  
         <Pivot
           selectedKey={currentCategory}
           onLinkClick={this.handleCategoryChange}
@@ -943,7 +1038,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             <PivotItem key={category} headerText={category} itemKey={category} />
           ))}
         </Pivot>
-
+  
         {filteredQuestions.length === 0 ? (
           <MessageBar messageBarType={MessageBarType.info}>
             No questions found for this category.
@@ -962,7 +1057,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
                 />
               ))}
             </div>
-
+  
             {filteredQuestions.length > questionsPerPage && (
               <div className={styles.paginationContainer}>
                 <Pagination
@@ -973,7 +1068,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
                 />
               </div>
             )}
-
+  
             <div className={styles.submitContainer}>
               {isSubmitting ? (
                 <Spinner size={SpinnerSize.small} label="Submitting quiz..." />
@@ -993,7 +1088,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             </div>
           </>
         )}
-
+  
         {/* Dialogs */}
         {showQuestionPreview && previewQuestion && (
           <QuestionPreview
@@ -1001,7 +1096,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             onClose={this.handleClosePreview}
           />
         )}
-
+  
         {showEditQuestionsDialog && (
           <Dialog
             hidden={false}
@@ -1038,13 +1133,13 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
                   <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
                     <Text variant="large">{questions.length} questions total</Text>
                   </Stack>
-
+  
                   <QuestionManagement
                     questions={questions}
                     onUpdateQuestions={(updatedQuestions) => {
                       // Update questions through the prop callback
                       this.props.updateQuestions(updatedQuestions);
-
+  
                       // Update local state for immediate re-render
                       this.setState({
                         questions: updatedQuestions,
@@ -1081,7 +1176,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             </DialogFooter>
           </Dialog>
         )}
-
+  
         {showAddQuestionForm && (
           <AddQuestionDialog
             categories={categories.filter(cat => cat !== 'All')}
@@ -1092,7 +1187,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             initialQuestion={this.state.newQuestion.id !== Date.now() ? this.state.newQuestion : undefined}
           />
         )}
-
+  
         {importDialogOpen && (
           <ImportQuestionsDialog
             existingCategories={categories.filter(cat => cat !== 'All')}
@@ -1100,7 +1195,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             onCancel={this.handleImportQuestionsCancel}
           />
         )}
-
+  
         {this.renderConfirmDialog()}
       </Stack>
     );

@@ -243,10 +243,20 @@ const QuestionManagement: React.FC<IQuestionManagementProps> = (props) => {
         iconProps: { iconName: 'Delete' },
         onClick: handleBulkDeleteClick,
       });
+      
+      // Add Edit button if exactly one item is selected
+      if (selectedItems.length === 1) {
+        items.push({
+          key: 'edit',
+          text: 'Edit Selected',
+          iconProps: { iconName: 'Edit' },
+          onClick: () => onEditQuestion(selectedItems[0]),
+        });
+      }
     }
 
     return items;
-  }, [onAddQuestion, applyFilters, selectedItems.length, handleBulkDeleteClick]);
+  }, [onAddQuestion, applyFilters, selectedItems, handleBulkDeleteClick, onEditQuestion]);
 
   // Columns for DetailsList
   const columns: IColumn[] = React.useMemo(() => [
@@ -284,6 +294,24 @@ const QuestionManagement: React.FC<IQuestionManagementProps> = (props) => {
       isPadded: true,
     },
     {
+      key: 'edit',
+      name: 'Edit',
+      minWidth: 50,
+      maxWidth: 50,
+      isResizable: false,
+      onRender: (item: IQuizQuestion) => {
+        return (
+          <IconButton
+            iconProps={{ iconName: 'Edit' }}
+            title="Edit Question"
+            ariaLabel="Edit Question"
+            onClick={() => onEditQuestion(item)}
+            className={styles.actionButton}
+          />
+        );
+      },
+    },
+    {
       key: 'actions',
       name: 'Actions',
       minWidth: 100,
@@ -297,13 +325,6 @@ const QuestionManagement: React.FC<IQuestionManagementProps> = (props) => {
               title="Preview"
               ariaLabel="Preview"
               onClick={() => onPreviewQuestion(item)}
-              className={styles.actionButton}
-            />
-            <IconButton
-              iconProps={{ iconName: 'Edit' }}
-              title="Edit"
-              ariaLabel="Edit"
-              onClick={() => onEditQuestion(item)}
               className={styles.actionButton}
             />
             <IconButton

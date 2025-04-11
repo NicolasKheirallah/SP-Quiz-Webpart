@@ -8,6 +8,7 @@ import {
   IChoiceGroupOption,
   IStackTokens
 } from '@fluentui/react';
+import { RichText } from "@pnp/spfx-controls-react/lib/RichText";
 import { IQuizQuestionProps } from './interfaces';
 import { QuestionType } from './interfaces';
 import styles from './Quiz.module.scss';
@@ -22,7 +23,7 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
 
   // Handler for multiple choice and true/false questions
   const handleRadioChange = (
-    ev: React.FormEvent<HTMLElement> | undefined,
+    _ev: React.FormEvent<HTMLElement> | undefined,
     option?: IChoiceGroupOption
   ): void => {
     if (option) {
@@ -32,7 +33,7 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
 
   // Handler for multiple select questions
   const handleCheckboxChange = (
-    ev: React.FormEvent<HTMLElement> | undefined,
+    _ev: React.FormEvent<HTMLElement> | undefined,
     checked?: boolean,
     choiceId?: string
   ): void => {
@@ -54,7 +55,7 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
 
   // Handler for short answer questions
   const handleTextChange = (
-    ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement> | undefined,
+    _ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement> | undefined,
     newValue?: string
   ): void => {
     onAnswerSelect(question.id, newValue || '');
@@ -101,7 +102,7 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
                 key={choice.id}
                 label={choice.text}
                 checked={selectedChoices.includes(choice.id)}
-                onChange={(_, checked) => handleCheckboxChange(_, checked, choice.id)}
+                onChange={(ev, checked) => handleCheckboxChange(ev, checked, choice.id)}
               />
             ))}
           </Stack>
@@ -152,6 +153,15 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
           Question {questionNumber} of {totalQuestions}
         </Text>
       </div>
+
+      {question.description && (
+        <div className={styles.questionDescription}>
+          <RichText 
+            value={question.description}
+            isEditMode={false}
+          />
+        </div>
+      )}
 
       <div className={styles.questionInfo}>
         <span className={styles.questionTag}>
