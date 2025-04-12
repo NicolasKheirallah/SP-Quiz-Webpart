@@ -1,3 +1,5 @@
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+
 export enum QuestionType {
   MultipleChoice = 'multipleChoice',
   TrueFalse = 'trueFalse',
@@ -10,6 +12,26 @@ export interface IChoice {
   id: string;
   text: string;
   isCorrect: boolean;
+  image?: IQuizImage; // Optional image for this choice
+}
+
+// Image interface
+export interface IQuizImage {
+  id: string;
+  url: string;
+  altText?: string;
+  fileName: string;
+  width?: number;
+  height?: number;
+}
+
+// Code snippet interface
+export interface ICodeSnippet {
+  id: string;
+  code: string;
+  language: string; // e.g., 'javascript', 'python', 'csharp', etc.
+  lineNumbers?: boolean;
+  highlightLines?: number[]; // Lines to highlight
 }
 
 export interface IQuizQuestion {
@@ -28,11 +50,15 @@ export interface IQuizQuestion {
   caseSensitive?: boolean; // For short answer, whether it's case sensitive
   userAnswer?: string | string[];  // Added for tracking user's answer for detailed results
   isCorrect?: boolean;  // Added for tracking if the question was answered correctly
+  // New fields
+  images?: IQuizImage[];
+  timeLimit?: number; // Time limit in seconds for this specific question
+  codeSnippets?: ICodeSnippet[]; // For code syntax highlighting
 }
 
 export interface IQuizState {
   questions: IQuizQuestion[];
-  originalQuestions: IQuizQuestion[]; // For randomization we keep original order
+  originalQuestions: IQuizQuestion[];
   categories: string[];
   loading: boolean;
   currentPage: number;
@@ -42,7 +68,7 @@ export interface IQuizState {
   score: number;
   totalQuestions: number;
   totalPoints: number;
-  answeredQuestions: number; // New field to track progress
+  answeredQuestions: number; 
   isSubmitting: boolean;
   submissionSuccess: boolean;
   submissionError: string;
@@ -57,10 +83,13 @@ export interface IQuizState {
   adminView?: string;
   submitRequireAllAnswered?: boolean;
   showEditQuestionsDialog: boolean;
-  // New fields for detailed results
   detailedResults?: IDetailedQuizResults;
-  // New field for progress tracking
   quizProgress?: IQuizProgress;
+  showStartPage: boolean;
+  quizStarted: boolean;
+  overallTimerExpired: boolean;
+  expiredQuestions: number[];
+
 }
 
 // Interface for detailed quiz results
@@ -116,7 +145,8 @@ export interface IQuizQuestionProps {
   onAnswerSelect: (questionId: number, choiceId: string | string[]) => void;
   questionNumber: number;
   totalQuestions: number;
-  showProgressIndicator: boolean;
+  showProgressIndicator?: boolean;
+  onTimeExpired?: (questionId: number) => void;
 }
 
 export interface IAddQuestionFormProps {
@@ -126,6 +156,8 @@ export interface IAddQuestionFormProps {
   isSubmitting: boolean;
   onPreviewQuestion: (question: IQuizQuestion) => void;
   initialQuestion?: IQuizQuestion; // Added for editing existing questions
+  context?: WebPartContext; // SPFx context for file picker
+  defaultQuestionTimeLimit?: number; // Add this property
 }
 
 export interface IImportQuestionsProps {
@@ -145,4 +177,39 @@ export interface IQuizProgressTrackerProps {
   showNumbers?: boolean;
   showIcon?: boolean;
   showTimer?: boolean;
+}
+
+// Interface for image upload component
+export interface IImageUploadProps {
+  onImageUpload: (image: IQuizImage) => void;
+  onImageRemove?: () => void;
+  currentImage?: IQuizImage;
+  label?: string;
+  accept?: string;
+  maxSizeMB?: number;
+  context?: WebPartContext;
+}
+
+// Interface for question timer component
+export interface IQuestionTimerProps {
+  timeLimit: number; // in seconds
+  onTimeExpired: () => void;
+  paused?: boolean;
+  warningThreshold?: number; // percentage when to start warning (default: 20%)
+  criticalThreshold?: number; // percentage when to show critical warning (default: 10%)
+  showText?: boolean;
+}
+
+// Interface for code snippet component
+export interface ICodeSnippetProps {
+  snippet?: ICodeSnippet;
+  onChange: (snippet: ICodeSnippet) => void;
+  onRemove?: () => void;
+  isEditing?: boolean;
+  label?: string;
+}
+export interface IQuizPropertyPaneProps {
+  questions: IQuizQuestion[];
+  onUpdateQuestions: (questions: IQuizQuestion[]) => void;
+  context: WebPartContext;
 }

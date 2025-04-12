@@ -6,7 +6,8 @@ import {
   PropertyPaneTextField,
   PropertyPaneDropdown,
   PropertyPaneToggle,
-  IPropertyPaneField
+  IPropertyPaneField,
+  PropertyPaneSlider
 } from '@microsoft/sp-property-pane';
 import { IPropertyPaneCustomFieldProps } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
@@ -14,8 +15,8 @@ import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import * as strings from 'QuizWebPartStrings';
 import Quiz from './components/Quiz';
 import { IQuizProps } from './components/IQuizProps';
-import { IQuizQuestion, QuestionType } from './components/interfaces';
-import QuizPropertyPane from './components/QuizPropertyPane';
+import { IQuizPropertyPaneProps, IQuizQuestion, QuestionType } from './components/interfaces';
+import  QuizPropertyPane  from './components/QuizPropertyPane';
 
 export interface IQuizWebPartProps {
   title: string;
@@ -33,6 +34,8 @@ export interface IQuizWebPartProps {
   questions: IQuizQuestion[];
   passingScore: number;
   timeLimit: number;
+  enableQuestionTimeLimit: boolean;  // New property for enabling per-question time limits
+  defaultQuestionTimeLimit: number;  // Default time limit for questions
 }
 
 export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps> {
@@ -67,6 +70,10 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
         showProgressIndicator: this.properties.showProgressIndicator !== undefined ? this.properties.showProgressIndicator : true,
         randomizeQuestions: this.properties.randomizeQuestions !== undefined ? this.properties.randomizeQuestions : false,
         randomizeAnswers: this.properties.randomizeAnswers !== undefined ? this.properties.randomizeAnswers : false,
+        passingScore: this.properties.passingScore || 70,
+        timeLimit: this.properties.timeLimit ? this.properties.timeLimit * 60 : undefined,
+        enableQuestionTimeLimit: this.properties.enableQuestionTimeLimit || false,
+        defaultQuestionTimeLimit: this.properties.defaultQuestionTimeLimit || 60,
         questions: this.properties.questions || [],
         updateQuestions: (questions: IQuizQuestion[]) => {
           this.properties.questions = questions;
@@ -106,25 +113,35 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
   // Render the property pane content
   private renderPropertyPaneContent(): void {
     if (this.context.propertyPane.isPropertyPaneOpen()) {
-      // Ensure proper container exists
-      if (!this._propertyPaneContainer) {
-        this._propertyPaneContainer = document.createElement('div');
-        this._propertyPaneContainer.className = 'quiz-property-pane-container';
-      }
-
-      const propertyPaneElement = React.createElement(
-        QuizPropertyPane,
-        {
-          questions: this.properties.questions || [],
-          onUpdateQuestions: (questions: IQuizQuestion[]) => {
-            this.properties.questions = questions;
-            this.render();
-          }
+      try {
+        // Ensure proper container exists
+        if (!this._propertyPaneContainer) {
+          this._propertyPaneContainer = document.createElement('div');
+          this._propertyPaneContainer.className = 'quiz-property-pane-container';
         }
-      );
 
-      // Render the new property pane component
-      ReactDom.render(propertyPaneElement, this._propertyPaneContainer);
+        // Create the property pane component with error handling
+        const propertyPaneElement = React.createElement<IQuizPropertyPaneProps>(
+          QuizPropertyPane,
+          {
+            questions: this.properties.questions || [],
+            onUpdateQuestions: (questions: IQuizQuestion[]) => {
+              this.properties.questions = questions;
+              this.render();
+            },
+            context: this.context  // Pass context to property pane
+          }
+        );
+
+        // Render the new property pane component
+        ReactDom.render(propertyPaneElement, this._propertyPaneContainer);
+      } catch (error) {
+        console.error('Error rendering property pane content:', error);
+        // Create a simple error message if rendering fails
+        if (this._propertyPaneContainer) {
+          this._propertyPaneContainer.innerHTML = '<div style="color: red; padding: 10px;">Error loading question manager. Please refresh the page and try again.</div>';
+        }
+      }
     }
   }
 
@@ -240,10 +257,27 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
                   description: 'Minimum percentage to pass the quiz'
                 }),
                 PropertyPaneTextField('timeLimit', {
-                  label: 'Time Limit (minutes)',
-                  description: 'Maximum time allowed for the quiz (0 for no time limit)'
-                })
-              ]
+                  label: 'Overall Quiz Time Limit (minutes)',
+                  description: 'Maximum time allowed for the entire quiz (0 for no time limit)'
+                }),
+                PropertyPaneToggle('enableQuestionTimeLimit', {
+                  label: 'Enable Question Time Limits',
+                  onText: 'On',
+                  offText: 'Off',
+                  checked: this.properties.enableQuestionTimeLimit
+                }),
+                this.properties.enableQuestionTimeLimit ? 
+                PropertyPaneSlider('defaultQuestionTimeLimit', {
+                  label: 'Default Question Time Limit (seconds)',
+                  min: 10,
+                  max: 300,
+                  step: 5,
+                  showValue: true,
+                  value: this.properties.defaultQuestionTimeLimit || 60
+                }) : null
+              ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
+
+
             },
             {
               groupName: 'Messages',
@@ -280,11 +314,23 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
                   targetProperty: 'questionManager',
                   properties: {},
                   onRender: (): HTMLElement | null => {
-                    this.disposeReactComponents();
-                    this._propertyPaneContainer = document.createElement('div');
-                    this._propertyPaneContainer.className = 'quiz-property-pane-container';
-                    
-                    return this._propertyPaneContainer;
+                    try {
+                      this.disposeReactComponents();
+                      this._propertyPaneContainer = document.createElement('div');
+                      this._propertyPaneContainer.className = 'quiz-property-pane-container';
+                      
+                      // Add a setTimeout to ensure the container is properly attached to DOM
+                      setTimeout(() => {
+                        this.renderPropertyPaneContent();
+                      }, 100);
+                      
+                      return this._propertyPaneContainer;
+                    } catch (error) {
+                      console.error('Error in onRender:', error);
+                      const errorContainer = document.createElement('div');
+                      errorContainer.innerHTML = '<div style="color: red; padding: 10px;">Error loading question manager. Please refresh the page and try again.</div>';
+                      return errorContainer;
+                    }
                   },
                   onDispose: (): void => {
                     this.disposeReactComponents();

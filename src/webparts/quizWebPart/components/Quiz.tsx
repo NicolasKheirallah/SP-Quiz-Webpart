@@ -11,6 +11,8 @@ import AddQuestionDialog from './AddQuestionDialog';
 import ImportQuestionsDialog from './ImportQuestionsDialog';
 import QuestionPreview from './QuestionPreview';
 import { DisplayMode } from '@microsoft/sp-core-library';
+import QuizStartPage from './QuizStartPage';
+import QuizTimer from './QuizTimer';
 
 import {
   Spinner,
@@ -101,7 +103,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       confirmDialogAction: '',
       adminView: 'questions',
       submitRequireAllAnswered: false,
-      showEditQuestionsDialog: false
+      showEditQuestionsDialog: false,
+      showStartPage: true,
+      quizStarted: false,
+      overallTimerExpired: false,
+      expiredQuestions: []
+
 
     };
   }
@@ -173,69 +180,96 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
 
     this.setState({ questions: updatedQuestions });
   }
+
+
   private saveQuizResults = async (): Promise<boolean> => {
     try {
       const spHttpClient = this.props.context.spHttpClient;
       const webUrl = this.props.context.pageContext.web.absoluteUrl;
       const currentUser = this.props.context.pageContext.user;
 
+      // Calculate the score percentage properly
+      const scorePercentage = this.state.totalPoints > 0
+        ? Math.round((this.state.score / this.state.totalPoints) * 100)
+        : 0;
+
+      // Prepare the question results data with proper scoring information
+      const questionResults = this.state.questions.map(question => {
+        // Determine if the question was answered correctly
+        const isCorrect = this.isQuestionCorrect(question);
+        const points = question.points || 1;
+        const earnedPoints = isCorrect ? points : 0;
+
+        return {
+          QuestionId: question.id.toString(),
+          QuestionTitle: question.title,
+          QuestionType: question.type,
+          SelectedChoice: question.selectedChoice
+            ? (Array.isArray(question.selectedChoice)
+              ? question.selectedChoice.join(',')
+              : question.selectedChoice.toString())
+            : '',
+          IsCorrect: isCorrect,
+          EarnedPoints: earnedPoints,
+          PossiblePoints: points
+        };
+      });
+
       // Prepare detailed result data
       const resultData = {
-        Title: `Quiz Result - ${new Date().toISOString()}`,
-        UserName: currentUser.displayName,
-        UserEmail: currentUser.email,
-        UserId: currentUser.loginName,
-        QuizTitle: this.props.title,
+        Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
+        UserName: currentUser.displayName || 'Anonymous',
+        UserEmail: currentUser.email || 'Not provided',
+        UserId: currentUser.loginName || 'Unknown',
+        QuizTitle: this.props.title || 'SharePoint Quiz',
 
-        // Score details
+        // Score details - ensuring we have valid numbers
         Score: this.state.score,
         TotalPoints: this.state.totalPoints,
-        ScorePercentage: Math.round((this.state.score / this.state.totalPoints) * 100),
+        ScorePercentage: scorePercentage,
+        QuestionsAnswered: this.state.answeredQuestions || 0,
+        TotalQuestions: this.state.questions.length || 0,
 
         // Timestamp
         ResultDate: new Date().toISOString(),
 
         // Detailed question results
-        QuestionDetails: JSON.stringify(
-          this.state.questions.map(question => ({
-            QuestionId: question.id,
-            QuestionTitle: question.title,
-            QuestionType: question.type,
-            SelectedChoice: question.selectedChoice,
-            IsCorrect: this.isQuestionCorrect(question),
-            Points: question.points || 1
-          }))
-        )
+        QuestionDetails: JSON.stringify(questionResults)
       };
 
-      // Check if list exists, create if not
-      const listExists = await this.ensureQuizResultsList(spHttpClient, webUrl);
-      if (!listExists) {
-        throw new Error('Could not create or find Quiz Results list');
-      }
+      console.log('Saving quiz results:', resultData);
 
-      // Save result
-      const response = await spHttpClient.post(
-        `${webUrl}/_api/web/lists/getbytitle('QuizResults')/items`,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=nometadata',
-            'Content-type': 'application/json;odata=nometadata',
-            'odata-version': ''
-          },
-          body: JSON.stringify(resultData)
+      // Save result to existing QuizResults list
+      try {
+        const response = await spHttpClient.post(
+          `${webUrl}/_api/web/lists/getbytitle('QuizResults')/items`,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'Content-type': 'application/json;odata=nometadata',
+              'odata-version': ''
+            },
+            body: JSON.stringify(resultData)
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response from SharePoint:', errorText);
+          throw new Error(`Failed to save quiz results: ${errorText}`);
         }
-      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to save quiz results: ${errorText}`);
+        const responseData = await response.json();
+        console.log('Quiz results saved successfully:', responseData);
+
+        return true;
+      } catch (error) {
+        console.error('Error saving to QuizResults list:', error);
+        throw error;
       }
-
-      return true;
     } catch (error) {
-      console.error('Error saving quiz results:', error);
+      console.error('Error in saveQuizResults:', error);
 
       // Update state with submission error
       this.setState({
@@ -248,172 +282,129 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     }
   }
 
-  // Helper method to ensure Quiz Results list exists
-  private ensureQuizResultsList = async (
-    spHttpClient: SPHttpClient,
-    webUrl: string
-  ): Promise<boolean> => {
-    try {
-      // First, check if list exists
-      const listCheckResponse = await spHttpClient.get(
-        `${webUrl}/_api/web/lists/getbytitle('QuizResults')`,
-        SPHttpClient.configurations.v1
-      );
 
-      if (listCheckResponse.ok) {
-        return true;
-      }
-
-      // If list doesn't exist, create it
-      const listCreationResponse = await spHttpClient.post(
-        `${webUrl}/_api/web/lists`,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=nometadata',
-            'Content-type': 'application/json;odata=nometadata'
-          },
-          body: JSON.stringify({
-            '__metadata': { 'type': 'SP.List' },
-            'BaseTemplate': 100, // Generic list
-            'Title': 'QuizResults',
-            'Description': 'Stores quiz results for tracking and analysis'
-          })
-        }
-      );
-
-      if (!listCreationResponse.ok) {
-        const errorText = await listCreationResponse.text();
-        throw new Error(`Failed to create QuizResults list: ${errorText}`);
-      }
-
-      // Add columns to the list
-      await this.addListColumns(spHttpClient, webUrl);
-
-      return true;
-    } catch (error) {
-      console.error('Error ensuring QuizResults list:', error);
-      return false;
+  private handleQuestionTimeExpired = (questionId: number): void => {
+    // Add this expired question ID to a tracking array
+    this.setState(prevState => ({
+      expiredQuestions: [...(prevState.expiredQuestions || []), questionId]
+    }));
+    
+    // Optionally, you can choose to automatically advance to the next question
+    // This is commented out by default, but can be enabled based on requirements
+    /*
+    const { currentPage, filteredQuestions, questionsPerPage } = this.state;
+    const totalPages = Math.ceil(filteredQuestions.length / questionsPerPage);
+    
+    if (currentPage < totalPages) {
+      // Move to next page if not on the last page
+      this.handlePageChange(currentPage + 1);
     }
-  }
-
-  // Add necessary columns to the list
-  private addListColumns = async (
-    spHttpClient: SPHttpClient,
-    webUrl: string
-  ): Promise<void> => {
-    const columnDefinitions = [
-      {
-        Title: 'UserName',
-        Type: 'Text'
-      },
-      {
-        Title: 'UserEmail',
-        Type: 'Text'
-      },
-      {
-        Title: 'UserId',
-        Type: 'Text'
-      },
-      {
-        Title: 'QuizTitle',
-        Type: 'Text'
-      },
-      {
-        Title: 'Score',
-        Type: 'Number'
-      },
-      {
-        Title: 'TotalPoints',
-        Type: 'Number'
-      },
-      {
-        Title: 'ScorePercentage',
-        Type: 'Number'
-      },
-      {
-        Title: 'ResultDate',
-        Type: 'DateTime'
-      },
-      {
-        Title: 'QuestionDetails',
-        Type: 'Note'
+    */
+    
+    // You could also choose to mark this question with a default answer
+    // For example, for multiple choice questions, you might select the first option
+    /*
+    const { questions } = this.state;
+    const questionIndex = questions.findIndex(q => q.id === questionId);
+    
+    if (questionIndex !== -1) {
+      const question = questions[questionIndex];
+      let defaultAnswer: string | string[] | undefined = undefined;
+      
+      // Determine default answer based on question type
+      switch (question.type) {
+        case QuestionType.MultipleChoice:
+        case QuestionType.TrueFalse:
+          // Select first option
+          defaultAnswer = question.choices[0]?.id;
+          break;
+        case QuestionType.MultiSelect:
+          // Select no options
+          defaultAnswer = [];
+          break;
+        case QuestionType.ShortAnswer:
+          // Empty string
+          defaultAnswer = '';
+          break;
       }
-    ];
-
-    for (const column of columnDefinitions) {
-      try {
-        await spHttpClient.post(
-          `${webUrl}/_api/web/lists/getbytitle('QuizResults')/fields`,
-          SPHttpClient.configurations.v1,
-          {
-            headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'Content-type': 'application/json;odata=nometadata'
-            },
-            body: JSON.stringify({
-              '__metadata': { 'type': 'SP.Field' },
-              'Title': column.Title,
-              'FieldTypeKind': this.getFieldTypeKind(column.Type)
-            })
-          }
-        );
-      } catch (error) {
-        console.warn(`Could not add column ${column.Title}:`, error);
+      
+      // If we have a default answer, update the question
+      if (defaultAnswer !== undefined) {
+        const updatedQuestions = [...questions];
+        updatedQuestions[questionIndex].selectedChoice = defaultAnswer;
+        this.setState({ questions: updatedQuestions });
       }
     }
+    */
   }
-
-  // Helper to map field types
-  private getFieldTypeKind = (type: string): number => {
-    switch (type) {
-      case 'Text': return 2;     // SP.FieldType.Text
-      case 'Number': return 9;   // SP.FieldType.Number
-      case 'DateTime': return 4; // SP.FieldType.DateTime
-      case 'Note': return 3;     // SP.FieldType.Note
-      default: return 2;         // Default to Text
-    }
-  }
-
+  
   // Helper to determine if a question is correct
   private isQuestionCorrect = (question: IQuizQuestion): boolean => {
-    if (question.selectedChoice === undefined) return false;
-  
-    switch (question.type) {
-      case QuestionType.MultipleChoice:
-      case QuestionType.TrueFalse: {
-        // Wrap in block to create a new lexical scope
-        const isCorrect = question.choices.find(
-          c => c.id === question.selectedChoice && c.isCorrect
-        ) !== undefined;
-        return isCorrect;
-      }
-  
-      case QuestionType.MultiSelect: {
-        // Wrap in block to create a new lexical scope
-        if (!Array.isArray(question.selectedChoice)) return false;
-        const selectedIds = new Set(question.selectedChoice);
-        const correctIds = new Set(
-          question.choices.filter(c => c.isCorrect).map(c => c.id)
-        );
-        return selectedIds.size === correctIds.size && 
-               [...correctIds].every(id => selectedIds.has(id));
-      }
-  
-      case QuestionType.ShortAnswer: {
-        // Wrap in block to create a new lexical scope
-        const isCorrect = question.correctAnswer !== undefined && 
-          (question.caseSensitive 
-            ? question.selectedChoice === question.correctAnswer
-            : (question.selectedChoice as string).toLowerCase() === 
-              (question.correctAnswer as string).toLowerCase());
-        return isCorrect;
-      }
-  
-      default:
-        return false;
+    // If the question wasn't answered, it's not correct
+    if (question.selectedChoice === undefined) {
+      return false;
     }
-  }
+
+    try {
+      switch (question.type) {
+        case QuestionType.MultipleChoice:
+        case QuestionType.TrueFalse: {
+          // For single-choice questions, check if the selected choice is marked as correct
+          const selectedChoiceId = question.selectedChoice as string;
+          const correctChoice = question.choices.find(c => c.id === selectedChoiceId && c.isCorrect);
+          return !!correctChoice;
+        }
+
+        case QuestionType.MultiSelect: {
+          // For multi-select, all correct choices must be selected and no incorrect choices
+          if (!Array.isArray(question.selectedChoice)) {
+            return false; // Invalid data type for multi-select
+          }
+
+          const selectedIds = new Set(question.selectedChoice);
+          const correctChoices = question.choices.filter(c => c.isCorrect);
+
+          // If there are no correct choices defined, the question is invalid
+          if (correctChoices.length === 0) {
+            return false;
+          }
+
+          // Make sure all correct choices are selected
+          const allCorrectChoicesSelected = correctChoices.every(choice =>
+            selectedIds.has(choice.id)
+          );
+
+          // Make sure no incorrect choices are selected
+          const noIncorrectChoicesSelected = question.choices
+            .filter(choice => !choice.isCorrect)
+            .every(choice => !selectedIds.has(choice.id));
+
+          return allCorrectChoicesSelected && noIncorrectChoicesSelected;
+        }
+
+        case QuestionType.ShortAnswer: {
+          if (typeof question.selectedChoice !== 'string' ||
+            typeof question.correctAnswer !== 'string') {
+            return false;
+          }
+
+          const userAnswer = (question.selectedChoice as string).trim();
+          const correctAnswer = (question.correctAnswer as string).trim();
+
+          // Handle case sensitivity
+          return question.caseSensitive === true
+            ? userAnswer === correctAnswer
+            : userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+        }
+
+        default:
+          return false;
+      }
+    } catch (error) {
+      console.error(`Error checking if question ${question.id} is correct:`, error);
+      return false; // Fail safe
+    }
+  };
   // Fisher-Yates shuffle algorithm
   private shuffleArray<T>(array: T[]): T[] {
     const newArray = [...array];
@@ -432,6 +423,32 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       });
     }
   };
+  private handleStartQuiz = (): void => {
+    this.setState({
+      showStartPage: false,
+      quizStarted: true,
+      currentPage: 1,
+      currentCategory: 'All',
+      expiredQuestions: [],
+      overallTimerExpired: false
+    });
+  }
+
+  private handleOverallTimerExpired = (): void => {
+    this.setState(
+      {
+        overallTimerExpired: true
+      },
+      async () => {
+        try {
+          await this.handleSubmitQuiz();
+        } catch (error) {
+          console.error("Error submitting quiz:", error);
+        }
+      }
+    );
+  }
+  
 
   private handleAnswerSelect = (questionId: number, choiceId: string | string[]): void => {
     const updatedQuestions = [...this.state.questions];
@@ -460,7 +477,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   ): IDetailedQuizResults => {
     // Calculate percentage
     const percentage = Math.round((score / totalPoints) * 100);
-    
+
     // Prepare question-by-question results
     const questionResults: IQuestionResult[] = questions.map(question => {
       // Skip questions that weren't answered
@@ -476,11 +493,11 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
           explanation: question.explanation
         };
       }
-      
+
       // Determine if the question was answered correctly
       const isCorrect = this.isQuestionCorrect(question);
       const points = question.points || 1;
-      
+
       return {
         id: question.id,
         title: question.title,
@@ -492,7 +509,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         explanation: question.explanation
       };
     });
-    
+
     return {
       score,
       totalPoints,
@@ -501,7 +518,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       timestamp: new Date().toISOString()
     };
   };
-  
+
   // Helper method to get correct answer text for display
   private getCorrectAnswerText = (question: IQuizQuestion): string | string[] | undefined => {
     switch (question.type) {
@@ -521,80 +538,67 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     }
   };
 
-private handleSubmitQuiz = async (): Promise<void> => {
-  this.setState({ isSubmitting: true });
+  private handleSubmitQuiz = async (): Promise<void> => {
+    this.setState({ isSubmitting: true, submissionError: '' });
 
-  try {
-    // Calculate score
-    let score = 0;
-    let totalPoints = 0;
-    let answeredQuestions = 0;
-    const allQuestions = this.state.questions;
-    const savedSuccessfully = await this.saveQuizResults();
+    try {
+      // Calculate score with better validation
+      let score = 0;
+      let totalPoints = 0;
+      let answeredQuestions = 0;
+      const allQuestions = this.state.questions;
 
-    allQuestions.forEach(question => {
-      if (question.selectedChoice !== undefined) {
-        answeredQuestions++;
-        const points = question.points || 1;
-        totalPoints += points;
+      // First, count answered questions and calculate total possible points
+      allQuestions.forEach(question => {
+        // Only include questions that have been answered in our calculations
+        if (question.selectedChoice !== undefined) {
+          answeredQuestions++;
+          const points = question.points || 1;
+          totalPoints += points;
 
-        let isCorrect = false;
+          // Determine if the answer is correct
+          const isCorrect = this.isQuestionCorrect(question);
 
-        switch (question.type) {
-          case QuestionType.MultipleChoice:
-          case QuestionType.TrueFalse: {
-            const selectedChoice = question.choices.find(c => c.id === question.selectedChoice);
-            isCorrect = !!selectedChoice?.isCorrect;
-            break;
-          }
-          case QuestionType.MultiSelect: {
-            if (Array.isArray(question.selectedChoice)) {
-              const selectedIds = new Set(question.selectedChoice);
-              const correctChoiceIds = question.choices.filter(c => c.isCorrect).map(c => c.id);
-              isCorrect = correctChoiceIds.length > 0 &&
-                correctChoiceIds.every(id => selectedIds.has(id)) &&
-                selectedIds.size === correctChoiceIds.length;
-            }
-            break;
-          }
-          case QuestionType.ShortAnswer: {
-            if (typeof question.selectedChoice === 'string' && question.correctAnswer) {
-              isCorrect = question.caseSensitive
-                ? question.selectedChoice.trim() === question.correctAnswer.trim()
-                : question.selectedChoice.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
-            }
-            break;
+          // Add to score if correct
+          if (isCorrect) {
+            score += points;
           }
         }
+      });
 
-        if (isCorrect) {
-          score += points;
-        }
-      }
-    });
+      // Save results to SharePoint list
+      const savedSuccessfully = await this.saveQuizResults();
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Prepare detailed results
-    const detailedResults = this.prepareDetailedResults(allQuestions, score, totalPoints);
+      // Log the results for debugging
+      console.log('Quiz submission results:', {
+        score,
+        totalPoints,
+        answeredQuestions,
+        savedSuccessfully
+      });
 
-    this.setState({
-      showResults: true,
-      score,
-      totalQuestions: answeredQuestions,
-      totalPoints,
-      submissionSuccess: savedSuccessfully,
-      isSubmitting: false,
-      detailedResults // Add detailed results to state
-    });
-  } catch (error) {
-    console.error('Error submitting quiz:', error);
-    this.setState({
-      submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
-      isSubmitting: false
-    });
-  }
-};
+      // Prepare detailed results
+      const detailedResults = this.prepareDetailedResults(allQuestions, score, totalPoints);
+
+      // Update state with results
+      this.setState({
+        showResults: true,
+        score,
+        totalQuestions: answeredQuestions,
+        totalPoints,
+        submissionSuccess: savedSuccessfully,
+        isSubmitting: false,
+        detailedResults
+      });
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+
+      this.setState({
+        submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
+        isSubmitting: false
+      });
+    }
+  };
 
 
   private handleRetakeQuiz = (): void => {
@@ -612,7 +616,11 @@ private handleSubmitQuiz = async (): Promise<void> => {
       totalPoints: 0,
       answeredQuestions: 0,
       submissionSuccess: false,
-      submissionError: ''
+      submissionError: '',
+      showStartPage: true,
+      quizStarted: false,
+      overallTimerExpired: false,
+      expiredQuestions: []
     });
 
     this.randomizeQuestionsIfNeeded();
@@ -634,23 +642,23 @@ private handleSubmitQuiz = async (): Promise<void> => {
 
   private handleAddQuestionSubmit = (newQuestion: IQuizQuestion): void => {
     let updatedQuestions: IQuizQuestion[];
-    
+
     // Check if this is an update to an existing question (by ID)
     const existingQuestionIndex = this.props.questions.findIndex(q => q.id === newQuestion.id);
-    
+
     if (existingQuestionIndex >= 0) {
       // It's an edit - replace the existing question
-      updatedQuestions = this.props.questions.map(q => 
+      updatedQuestions = this.props.questions.map(q =>
         q.id === newQuestion.id ? newQuestion : q
       );
     } else {
       // It's a new question - add it to the array
       updatedQuestions = [...this.props.questions, newQuestion];
     }
-  
+
     // Update questions through the prop callback
     this.props.updateQuestions(updatedQuestions);
-  
+
     // Update local state
     this.setState({
       showAddQuestionForm: false,
@@ -659,7 +667,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
       categories: this.updateCategories(updatedQuestions)
     });
   }
-  
+
 
   private updateCategories(questions: IQuizQuestion[]): string[] {
     const categoriesSet = new Set<string>();
@@ -724,10 +732,10 @@ private handleSubmitQuiz = async (): Promise<void> => {
   private handleDeleteQuestion = (questionId: number): void => {
     // Filter out just the question with the matching ID
     const updatedQuestions = this.props.questions.filter(q => q.id !== questionId);
-    
+
     // Update questions through the prop callback
     this.props.updateQuestions(updatedQuestions);
-    
+
     // Update local state
     this.setState({
       questions: updatedQuestions,
@@ -735,7 +743,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
       categories: this.updateCategories(updatedQuestions)
     });
   }
-  
+
 
 
 
@@ -770,7 +778,6 @@ private handleSubmitQuiz = async (): Promise<void> => {
   }
 
 
-  // Updated handler signature to fix Checkbox onChange type error
   private handleSubmitRequireAllChange = (
     ev?: React.FormEvent<HTMLElement | HTMLInputElement>,
     checked?: boolean
@@ -855,8 +862,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
   }
 
 
-  // Update the render return type to allow null
-  public render(): React.ReactElement<IQuizProps> | undefined {
+  public render(): React.ReactElement<IQuizProps> {
     const {
       loading,
       questions,
@@ -873,12 +879,18 @@ private handleSubmitQuiz = async (): Promise<void> => {
       showQuestionPreview,
       previewQuestion,
       showEditQuestionsDialog,
-      detailedResults
+      detailedResults,
+      showStartPage,
+      quizStarted,
+      overallTimerExpired
     } = this.state;
-  
-    const { questionsPerPage, showProgressIndicator, displayMode } = this.props;
-  
-    // If no questions available, show empty state
+
+    const {
+      questionsPerPage,
+      showProgressIndicator,
+      displayMode,
+    } = this.props;
+
     if (questions.length === 0) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -887,13 +899,13 @@ private handleSubmitQuiz = async (): Promise<void> => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-  
+
           {this.renderAdminPanel()}
-  
+
           <div className={styles.emptyState}>
             <Text variant="large">No questions have been added to this quiz yet.</Text>
             <Text>Use the admin panel to add questions or import from a file.</Text>
-  
+
             {displayMode === DisplayMode.Edit && (
               <Stack horizontal tokens={stackTokens} horizontalAlign="center" style={{ marginTop: '16px' }}>
                 <PrimaryButton
@@ -904,7 +916,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
               </Stack>
             )}
           </div>
-  
+
           {/* Dialogs */}
           {showAddQuestionForm && (
             <AddQuestionDialog
@@ -913,9 +925,10 @@ private handleSubmitQuiz = async (): Promise<void> => {
               onCancel={this.handleAddQuestionCancel}
               isSubmitting={false}
               onPreviewQuestion={this.handlePreviewQuestion}
+              context={this.props.context}
             />
           )}
-  
+
           {importDialogOpen && (
             <ImportQuestionsDialog
               existingCategories={categories.filter(cat => cat !== 'All')}
@@ -923,24 +936,36 @@ private handleSubmitQuiz = async (): Promise<void> => {
               onCancel={this.handleImportQuestionsCancel}
             />
           )}
-  
+
           {this.renderConfirmDialog()}
         </Stack>
       );
     }
-  
-    // Filter questions by category
-    const filteredQuestions = currentCategory === 'All'
-      ? questions
-      : questions.filter(q => q.category === currentCategory);
-  
-    // Paginate questions
-    const startIndex = (currentPage - 1) * questionsPerPage;
-    const paginatedQuestions = filteredQuestions.slice(startIndex, startIndex + questionsPerPage);
-  
-    const allQuestionsAnswered = questions.length === answeredQuestions;
-    const submitEnabled = !submitRequireAllAnswered ? answeredQuestions > 0 : allQuestionsAnswered;
-  
+
+    // Show start page if in display mode and not started
+    if (displayMode === DisplayMode.Read && showStartPage) {
+      return (
+        <Stack styles={mainContainerStyles}>
+          <WebPartTitle
+            displayMode={this.props.displayMode}
+            title={this.props.title}
+            updateProperty={this.props.updateProperty}
+          />
+
+          <QuizStartPage
+            title={this.props.title}
+            onStartQuiz={this.handleStartQuiz}
+            totalQuestions={questions.length}
+            totalPoints={questions.reduce((sum, q) => sum + (q.points || 1), 0)}
+            categories={categories.filter(c => c !== 'All')}
+            timeLimit={this.props.timeLimit}
+            passingScore={this.props.passingScore}
+            description="This quiz will test your knowledge of the subject matter. Please read each question carefully before selecting your answer."
+          />
+        </Stack>
+      );
+    }
+
     // Loading state
     if (loading) {
       return (
@@ -949,7 +974,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
         </Stack>
       );
     }
-  
+
     // Results view
     if (showResults) {
       return (
@@ -959,7 +984,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-  
+
           <QuizResults
             score={this.state.score}
             totalQuestions={this.state.totalQuestions}
@@ -980,7 +1005,19 @@ private handleSubmitQuiz = async (): Promise<void> => {
         </Stack>
       );
     }
-  
+
+    // Filter questions by category
+    const filteredQuestions = currentCategory === 'All'
+      ? questions
+      : questions.filter(q => q.category === currentCategory);
+
+    // Paginate questions
+    const startIndex = (currentPage - 1) * questionsPerPage;
+    const paginatedQuestions = filteredQuestions.slice(startIndex, startIndex + questionsPerPage);
+
+    const allQuestionsAnswered = questions.length === answeredQuestions;
+    const submitEnabled = !submitRequireAllAnswered ? answeredQuestions > 0 : allQuestionsAnswered;
+
     // Quiz taker view (or edit mode)
     return (
       <Stack styles={mainContainerStyles}>
@@ -989,9 +1026,9 @@ private handleSubmitQuiz = async (): Promise<void> => {
           title={this.props.title}
           updateProperty={this.props.updateProperty}
         />
-  
+
         {this.renderAdminPanel()}
-  
+
         {submissionError && (
           <MessageBar
             messageBarType={MessageBarType.error}
@@ -1001,7 +1038,26 @@ private handleSubmitQuiz = async (): Promise<void> => {
             {submissionError}
           </MessageBar>
         )}
-  
+
+        {/* Overall Quiz Timer - Only show when quiz is started in display mode */}
+        {displayMode === DisplayMode.Read && quizStarted && this.props.timeLimit && this.props.timeLimit > 0 && (
+          <QuizTimer
+            timeLimit={this.props.timeLimit}
+            onTimeExpired={this.handleOverallTimerExpired}
+            paused={showResults}
+          />
+        )}
+
+        {overallTimerExpired && (
+          <MessageBar
+            messageBarType={MessageBarType.severeWarning}
+            isMultiline={true}
+            styles={{ root: { marginBottom: 15 } }}
+          >
+            The time limit for this quiz has expired. Your answers have been automatically submitted.
+          </MessageBar>
+        )}
+
         {displayMode === DisplayMode.Edit && (
           <Stack horizontal horizontalAlign="space-between" tokens={stackTokens}>
             <Checkbox
@@ -1011,7 +1067,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             />
           </Stack>
         )}
-  
+
         {/* Progress Indicator - New feature */}
         {showProgressIndicator && (
           <QuizProgressTracker
@@ -1019,8 +1075,8 @@ private handleSubmitQuiz = async (): Promise<void> => {
               currentQuestion: currentPage,
               totalQuestions: filteredQuestions.length,
               answeredQuestions,
-              percentage: filteredQuestions.length > 0 
-                ? Math.round((answeredQuestions / filteredQuestions.length) * 100) 
+              percentage: filteredQuestions.length > 0
+                ? Math.round((answeredQuestions / filteredQuestions.length) * 100)
                 : 0
             }}
             showPercentage={true}
@@ -1028,7 +1084,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             showIcon={true}
           />
         )}
-  
+
         <Pivot
           selectedKey={currentCategory}
           onLinkClick={this.handleCategoryChange}
@@ -1038,7 +1094,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             <PivotItem key={category} headerText={category} itemKey={category} />
           ))}
         </Pivot>
-  
+
         {filteredQuestions.length === 0 ? (
           <MessageBar messageBarType={MessageBarType.info}>
             No questions found for this category.
@@ -1054,10 +1110,11 @@ private handleSubmitQuiz = async (): Promise<void> => {
                   questionNumber={startIndex + index + 1}
                   totalQuestions={filteredQuestions.length}
                   showProgressIndicator={false}
+                  onTimeExpired={(questionId) => this.handleQuestionTimeExpired(questionId)}
                 />
               ))}
             </div>
-  
+
             {filteredQuestions.length > questionsPerPage && (
               <div className={styles.paginationContainer}>
                 <Pagination
@@ -1068,7 +1125,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
                 />
               </div>
             )}
-  
+
             <div className={styles.submitContainer}>
               {isSubmitting ? (
                 <Spinner size={SpinnerSize.small} label="Submitting quiz..." />
@@ -1088,7 +1145,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             </div>
           </>
         )}
-  
+
         {/* Dialogs */}
         {showQuestionPreview && previewQuestion && (
           <QuestionPreview
@@ -1096,7 +1153,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             onClose={this.handleClosePreview}
           />
         )}
-  
+
         {showEditQuestionsDialog && (
           <Dialog
             hidden={false}
@@ -1133,13 +1190,13 @@ private handleSubmitQuiz = async (): Promise<void> => {
                   <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
                     <Text variant="large">{questions.length} questions total</Text>
                   </Stack>
-  
+
                   <QuestionManagement
                     questions={questions}
                     onUpdateQuestions={(updatedQuestions) => {
                       // Update questions through the prop callback
                       this.props.updateQuestions(updatedQuestions);
-  
+
                       // Update local state for immediate re-render
                       this.setState({
                         questions: updatedQuestions,
@@ -1176,7 +1233,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             </DialogFooter>
           </Dialog>
         )}
-  
+
         {showAddQuestionForm && (
           <AddQuestionDialog
             categories={categories.filter(cat => cat !== 'All')}
@@ -1185,9 +1242,10 @@ private handleSubmitQuiz = async (): Promise<void> => {
             isSubmitting={false}
             onPreviewQuestion={this.handlePreviewQuestion}
             initialQuestion={this.state.newQuestion.id !== Date.now() ? this.state.newQuestion : undefined}
+            context={this.props.context}
           />
         )}
-  
+
         {importDialogOpen && (
           <ImportQuestionsDialog
             existingCategories={categories.filter(cat => cat !== 'All')}
@@ -1195,7 +1253,7 @@ private handleSubmitQuiz = async (): Promise<void> => {
             onCancel={this.handleImportQuestionsCancel}
           />
         )}
-  
+
         {this.renderConfirmDialog()}
       </Stack>
     );

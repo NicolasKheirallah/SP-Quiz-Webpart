@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useEffect, useState } from 'react';
 import {
   Stack,
   Text,
@@ -6,12 +7,20 @@ import {
   TextField,
   ChoiceGroup,
   IChoiceGroupOption,
-  IStackTokens
+  IStackTokens,
+  Image,
+  ImageFit,
+  MessageBar,
+  MessageBarType
 } from '@fluentui/react';
 import { RichText } from "@pnp/spfx-controls-react/lib/RichText";
 import { IQuizQuestionProps } from './interfaces';
 import { QuestionType } from './interfaces';
 import styles from './Quiz.module.scss';
+import QuestionTimer from './QuestionTimer';
+
+// Import Prism for code highlighting
+import Prism from 'prismjs';
 
 // Stack tokens for spacing
 const stackTokens: IStackTokens = {
@@ -20,6 +29,16 @@ const stackTokens: IStackTokens = {
 
 const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
   const { question, onAnswerSelect, questionNumber, totalQuestions } = props;
+  const [timeLimitExpired, setTimeLimitExpired] = useState(false);
+
+  // Apply syntax highlighting to code snippets when component mounts or changes
+  useEffect(() => {
+    if (question.codeSnippets && question.codeSnippets.length > 0) {
+      setTimeout(() => {
+        Prism.highlightAll();
+      }, 100);
+    }
+  }, [question.codeSnippets]);
 
   // Handler for multiple choice and true/false questions
   const handleRadioChange = (
@@ -61,12 +80,32 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
     onAnswerSelect(question.id, newValue || '');
   };
 
+  // Handle time expired
+  const handleTimeExpired = (): void => {
+    setTimeLimitExpired(true);
+    // If the parent provided a time expired handler, call it
+    if (props.onTimeExpired) {
+      props.onTimeExpired(question.id);
+    }
+  };
+
   // Prepare options for ChoiceGroup
   const getChoiceGroupOptions = (): IChoiceGroupOption[] => {
-    return question.choices.map(choice => ({
-      key: choice.id,
-      text: choice.text
-    }));
+    return question.choices.map(choice => {
+      // Check if choice has an image
+      if (choice.image) {
+        return {
+          key: choice.id,
+          text: choice.text,
+          imageSrc: choice.image.url,
+          imageAlt: choice.image.altText || choice.text
+        };
+      }
+      return {
+        key: choice.id,
+        text: choice.text
+      };
+    });
   };
 
   // Render different question types
@@ -98,15 +137,26 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
         return (
           <Stack tokens={stackTokens} className={styles.checkboxGroup}>
             {question.choices.map((choice) => (
-              <Checkbox
-                key={choice.id}
-                label={choice.text}
-                checked={selectedChoices.includes(choice.id)}
-                onChange={(ev, checked) => handleCheckboxChange(ev, checked, choice.id)}
-              />
+              <div key={choice.id} className={styles.multiSelectChoice}>
+                <Checkbox
+                  label={choice.text}
+                  checked={selectedChoices.includes(choice.id)}
+                  onChange={(ev, checked) => handleCheckboxChange(ev, checked, choice.id)}
+                />
+                {choice.image && (
+                  <div className={styles.choiceImage}>
+                    <Image
+                      src={choice.image.url}
+                      alt={choice.image.altText || choice.text}
+                      width={200}
+                      height={120}
+                      imageFit={ImageFit.contain}
+                    />
+                  </div>
+                )}
+              </div>
             ))}
           </Stack>
-
         );
       }
 
@@ -154,12 +204,70 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
         </Text>
       </div>
 
+      {/* Display question timer if timeLimit is set */}
+      {question.timeLimit && question.timeLimit > 0 && (
+        <div className={styles.questionTimerWrapper}>
+          <QuestionTimer 
+            timeLimit={question.timeLimit} 
+            onTimeExpired={handleTimeExpired}
+            paused={false}
+          />
+        </div>
+      )}
+
+      {/* Display time expired message */}
+      {timeLimitExpired && (
+        <MessageBar
+          messageBarType={MessageBarType.warning}
+          isMultiline={false}
+          className={styles.timeExpiredMessage}
+        >
+          Time limit reached for this question. Your answer may not be counted.
+        </MessageBar>
+      )}
+
       {question.description && (
         <div className={styles.questionDescription}>
           <RichText 
             value={question.description}
             isEditMode={false}
           />
+        </div>
+      )}
+
+      {/* Display question images */}
+      {question.images && question.images.length > 0 && (
+        <div className={styles.questionImages}>
+          {question.images.map(image => (
+            <div key={image.id} className={styles.questionImage}>
+              <Image
+                src={image.url}
+                alt={image.altText || 'Question image'}
+                width={image.width || 500}
+                height={image.height || 300}
+                imageFit={ImageFit.contain}
+              />
+              {image.altText && (
+                <Text className={styles.imageCaption}>{image.altText}</Text>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Display code snippets */}
+      {question.codeSnippets && question.codeSnippets.length > 0 && (
+        <div className={styles.questionCodeSnippets}>
+          {question.codeSnippets.map(snippet => (
+            <div key={snippet.id} className={styles.codeDisplay}>
+              <pre className={snippet.lineNumbers ? 'line-numbers' : ''} 
+                  data-line={snippet.highlightLines?.join(',')}>
+                <code className={`language-${snippet.language}`}>
+                  {snippet.code}
+                </code>
+              </pre>
+            </div>
+          ))}
         </div>
       )}
 
@@ -184,7 +292,6 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
       <Stack tokens={stackTokens} className={styles.questionContent}>
         {renderQuestionContent()}
       </Stack>
-
     </div>
   );
 };

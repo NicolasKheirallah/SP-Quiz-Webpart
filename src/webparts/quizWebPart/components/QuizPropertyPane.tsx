@@ -2,7 +2,8 @@ import * as React from 'react';
 import { useState, useMemo } from 'react';
 import { 
   IQuizQuestion, 
-  QuestionType 
+  QuestionType,
+  IQuizPropertyPaneProps
 } from './interfaces';
 import QuestionManagement from './QuestionManagement';
 import AddQuestionDialog from './AddQuestionDialog';
@@ -25,10 +26,7 @@ import {
   mergeStyles
 } from '@fluentui/react';
 import { DialogType as FluentDialogType } from '@fluentui/react';
-interface IQuizPropertyPaneProps {
-  questions: IQuizQuestion[];
-  onUpdateQuestions: (questions: IQuizQuestion[]) => void;
-}
+
 
 // Rename this enum to avoid conflict with imported DialogType
 enum DialogTypeEnum {

@@ -20,6 +20,8 @@ export interface IQuizProps {
   randomizeAnswers: boolean;
   passingScore?: number;
   timeLimit?: number;
+  enableQuestionTimeLimit: boolean;
+  defaultQuestionTimeLimit: number;
   questions: IQuizQuestion[];
   updateQuestions: (questions: IQuizQuestion[]) => void;
 }
