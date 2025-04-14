@@ -21,8 +21,8 @@ import {
   Label
 } from '@fluentui/react';
 import { Accordion } from "@pnp/spfx-controls-react/lib/Accordion";
-import { ListView, IViewField, SelectionMode } from "@pnp/spfx-controls-react/lib/ListView";
 import styles from './Quiz.module.scss';
+
 const retakeIcon: IIconProps = { iconName: 'Refresh' };
 const reviewIcon: IIconProps = { iconName: 'ReadingMode' };
 const excellentIconName = 'Trophy';
@@ -30,13 +30,16 @@ const goodIconName = 'Emoji2';
 const averageIconName = 'EmojiNeutral';
 const poorIconName = 'Sad';
 const checkIconName = 'CheckMark';
+const questionIcon: IIconProps = { iconName: 'QuestionAnswer' };
 
 // Styles
 const resultsTitleStyles: ITextStyles = {
   root: {
-    fontSize: '24px',
+    fontSize: '28px',
     fontWeight: FontWeights.semibold,
-    marginBottom: '20px'
+    marginBottom: '24px',
+    textAlign: 'center',
+    color: '#0078d4'
   }
 };
 
@@ -44,7 +47,8 @@ const scoreValueStyles: ITextStyles = {
   root: {
     fontSize: '42px',
     fontWeight: FontWeights.bold,
-    color: 'white'
+    color: 'white',
+    margin: 0
   }
 };
 
@@ -52,7 +56,8 @@ const scoreTextStyles: ITextStyles = {
   root: {
     fontSize: '16px',
     color: 'white',
-    marginTop: '4px'
+    marginTop: '4px',
+    opacity: 0.9
   }
 };
 
@@ -65,9 +70,10 @@ const scoreDetailsStyles: ITextStyles = {
 
 const resultMessageStyles: ITextStyles = {
   root: {
-    fontSize: '16px',
+    fontSize: '18px',
     fontStyle: 'italic',
-    marginBottom: '16px'
+    marginBottom: '16px',
+    textAlign: 'center'
   }
 };
 
@@ -89,21 +95,24 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
     submissionError,
     onRetakeQuiz,
     messages,
-    detailedResults // Ensure this contains { score, totalPoints, percentage, questionResults: [...] }
+    detailedResults
   } = props;
 
   const [activeView, setActiveView] = React.useState<string>('summary');
 
-  // Calculate percentage based on score vs total points
-  const summaryPercentage = totalQuestions > 0 ? Math.round((score / totalPoints) * 100) : 0;
+  // Calculate the percentage of correctly answered questions vs total questions
+  const correctQuestionsCount = detailedResults?.correctlyAnsweredQuestions || 0;
+  const correctVsTotalPercentage = totalQuestions > 0 
+    ? Math.round((correctQuestionsCount / totalQuestions) * 100) 
+    : 0;
 
-  // Determine result message based on summary percentage
+  // Determine result message based on correctVsTotalPercentage
   let resultMessage = '';
-  if (summaryPercentage >= 90) {
+  if (correctVsTotalPercentage >= 90) {
     resultMessage = messages.excellent || 'Excellent! You have mastered this topic!';
-  } else if (summaryPercentage >= 70) {
+  } else if (correctVsTotalPercentage >= 70) {
     resultMessage = messages.good || 'Good job! You have a solid understanding.';
-  } else if (summaryPercentage >= 50) {
+  } else if (correctVsTotalPercentage >= 50) {
     resultMessage = messages.average || 'Not bad. There\'s room for improvement.';
   } else {
     resultMessage = messages.poor || 'Keep studying. You\'ll get better with practice.';
@@ -114,100 +123,66 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
     childrenGap: 16
   };
 
-  // Get performance message based on percentage - THIS IS USED in detailed view
-  const getPerformanceMessage = (percentage: number): string => {
-    if (percentage >= 90) return 'Excellent! You\'ve mastered this material.';
-    if (percentage >= 75) return 'Great job! You have a good understanding of the material.';
-    if (percentage >= 60) return 'Good effort! With a bit more study, you\'ll master this.';
-    if (percentage >= 40) return 'Keep practicing. You\'re making progress.';
-    return 'Don\'t give up! With more practice, you\'ll improve.';
-  };
-
-  // Format answers for display
+  // Format answers for display - ensure we're displaying text, not IDs
   const formatAnswer = (answer: string | string[] | undefined): string => {
-    if (answer === undefined || answer === null) return 'No answer provided'; // Handle null too
+    if (answer === undefined || answer === null) return 'No answer provided';
 
     if (Array.isArray(answer)) {
       return answer.length > 0 ? answer.join(', ') : 'No answer provided';
     }
+    
+    // Check if answer looks like a UUID (simple check)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof answer === 'string' && uuidPattern.test(answer)) {
+      return 'ID format detected - please check data conversion';
+    }
+    
     return answer.toString().trim() !== '' ? answer.toString() : 'No answer provided';
   };
-
-
-
-  // Configure ListView columns for detailed results
-  const viewFields: IViewField[] = React.useMemo(() => [
-    {
-      name: 'title',
-      displayName: 'Question',
-      minWidth: 200,
-      maxWidth: 300,
-      // Ensure item.title exists and is a string
-      render: (item) => <Text>{item?.title || 'N/A'}</Text>
-    },
-    {
-      name: 'isCorrect',
-      displayName: 'Result',
-      minWidth: 80, // Adjusted width
-      maxWidth: 100,
-      render: (item) => (
-        item && typeof item.isCorrect === 'boolean' ? ( // Add check for item and isCorrect
-          <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 4 }}>
-            <Icon
-              iconName={item.isCorrect ? 'CheckMark' : 'Cancel'}
-              style={{
-                color: item.isCorrect ? '#107c10' : '#d13438',
-              }}
-            />
-            <Text>{item.isCorrect ? 'Correct' : 'Incorrect'}</Text>
-          </Stack>
-        ) : <Text>N/A</Text>
-      )
-    },
-    {
-      name: 'points',
-      displayName: 'Points',
-      minWidth: 80, // Adjusted width
-      maxWidth: 100,
-      // Ensure points values exist and are numbers
-      render: (item) => <Text>{(typeof item?.earnedPoints === 'number' ? item.earnedPoints : '-')}/{(typeof item?.points === 'number' ? item.points : '-')}</Text>
-    }
-  ], []);
 
   // Render summary view
   const renderSummaryView = (): JSX.Element => {
     return (
       <div className={styles.scoreCard}>
-        <div className={styles.scoreBadge} style={{
-          backgroundColor: summaryPercentage >= 90 ? '#107c10' :
-            summaryPercentage >= 70 ? '#498205' :
-              summaryPercentage >= 50 ? '#ffaa44' : '#d13438'
-        }}>
-          <Text styles={scoreValueStyles}>{summaryPercentage}%</Text>
-          <Text styles={scoreTextStyles}>Score</Text>
+        <div className={styles.resultsSummaryCard}>
+          <Stack horizontal wrap horizontalAlign="space-between" tokens={{ childrenGap: 20 }}>
+            <Stack style={{ flex: '1 1 auto', minWidth: '250px' }}>
+              <div className={styles.resultsStat}>
+                <Icon iconName={questionIcon.iconName} style={{ color: '#0078d4', marginRight: '12px', fontSize: '20px' }} />
+                <Text styles={scoreDetailsStyles}>
+                  You answered <b>{correctQuestionsCount}</b> out of <b>{totalQuestions}</b> questions correctly.
+                </Text>
+              </div>
+              <div className={styles.resultsStat}>
+                <Text styles={scoreDetailsStyles}>
+                  Points earned: <b>{score}</b> out of <b>{totalPoints}</b> points.
+                </Text>
+              </div>
+            </Stack>
+            
+            <div className={styles.scoreBadge} style={{
+              backgroundColor: correctVsTotalPercentage >= 90 ? '#107c10' :
+                correctVsTotalPercentage >= 70 ? '#498205' :
+                  correctVsTotalPercentage >= 50 ? '#ffaa44' : '#d13438',
+              width: '120px',
+              height: '120px'
+            }}>
+              <Text styles={scoreValueStyles}>{correctVsTotalPercentage}%</Text>
+              <Text styles={scoreTextStyles}>Score</Text>
+            </div>
+          </Stack>
         </div>
 
-        <Text styles={scoreDetailsStyles}>
-          You answered {score} out of {totalPoints} points correctly.
-        </Text>
-
-        {/* If detailed results are available, show additional stats */}
-        {detailedResults && (
-          <Text styles={scoreDetailsStyles}>
-            You answered {detailedResults.correctlyAnsweredQuestions} out of {detailedResults.totalQuestions} questions correctly ({detailedResults.percentageCorrect}%).
-          </Text>
-        )}
-
-        <Stack horizontal tokens={{ childrenGap: 8 }} horizontalAlign="center" verticalAlign="center">
-          <Icon iconName={getScoreIconName(summaryPercentage)} styles={{ root: { fontSize: '20px' } }} />
+        <Stack horizontal tokens={{ childrenGap: 8 }} horizontalAlign="center" verticalAlign="center" style={{ margin: '16px 0' }}>
+          <Icon iconName={getScoreIconName(correctVsTotalPercentage)} styles={{ root: { fontSize: '24px' } }} />
           <Text styles={resultMessageStyles}>{resultMessage}</Text>
         </Stack>
 
-        <Stack horizontalAlign="center" tokens={stackTokens}>
+        <Stack horizontalAlign="center" tokens={stackTokens} style={{ marginTop: '10px' }}>
           <ProgressIndicator
-            percentComplete={summaryPercentage / 100}
+            percentComplete={correctVsTotalPercentage / 100}
             styles={{
-              root: { maxWidth: '400px', margin: '20px auto 0' }, // Added top margin
+              root: { maxWidth: '400px', margin: '20px auto 0' },
               itemName: { textAlign: 'left' },
               itemProgress: { paddingBottom: 4 }
             }}
@@ -219,7 +194,6 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
 
   // Render detailed results view
   const renderDetailedView = (): JSX.Element => {
-    // Add checks for detailedResults and its properties
     if (!detailedResults || !detailedResults.questionResults) {
       return (
         <MessageBar messageBarType={MessageBarType.info}>
@@ -228,106 +202,128 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
       );
     }
 
-
     return (
       <div className={styles.resultsContainer}>
-        <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
-          <Stack>
-            <Text variant="large" style={{ fontWeight: FontWeights.semibold, color: '#0078d4' }}>
-              {detailedResults.score} / {detailedResults.totalPoints} points ({detailedResults.percentage}%)
-            </Text>
-            {/* Show the correct vs total questions percentage */}
-            <Text variant="medium" style={{ marginTop: '5px' }}>
-              {detailedResults.correctlyAnsweredQuestions} / {detailedResults.totalQuestions} questions correct ({detailedResults.percentageCorrect}%)
-            </Text>
-            <Text variant="medium">
-              {getPerformanceMessage(detailedResults.percentage)}
-            </Text>
+        {/* Summary Stats Card */}
+        <div className={styles.resultsSummaryCard}>
+          <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+            <Stack tokens={{ childrenGap: 5 }}>
+              <Text variant="large" style={{ fontWeight: FontWeights.semibold, color: '#0078d4' }}>
+                {correctQuestionsCount} / {totalQuestions} questions correct ({correctVsTotalPercentage}%)
+              </Text>
+              <Text variant="medium">
+                Points: {score} / {totalPoints}
+              </Text>
+            </Stack>
+            <div className={styles.scoreCircle} style={{
+              backgroundColor: correctVsTotalPercentage >= 90 ? '#107c10' :
+                correctVsTotalPercentage >= 70 ? '#498205' :
+                  correctVsTotalPercentage >= 50 ? '#ffaa44' : '#d13438'
+            }}>
+              <div className={styles.scoreValue}>{correctVsTotalPercentage}%</div>
+              <div className={styles.scoreLabel}>Score</div>
+            </div>
           </Stack>
-        </Stack>
+        </div>
 
-        <Separator>Question Results</Separator>
-
-        {/* Use ListView for a summary table */}
-        <ListView
-          items={detailedResults.questionResults}
-          viewFields={viewFields}
-          compact={false}
-          selectionMode={SelectionMode.none}
-          showFilter={false}
-        />
-
-        <Separator>Question Details</Separator>
-
-        {/* Map over questions and render an Accordion for each */}
-        {/* Use styles.questionAccordion or define questionAccordionContainer in SCSS */}
-        <div className={styles.questionAccordion}>
-          {detailedResults.questionResults.map((question, index) => {
-            // Check if question object is valid
-            if (!question) return null;
-
-            // Create a simple string title for the Accordion header
-            const simpleAccordionTitle = `Question ${index + 1}: ${question.title || 'Untitled Question'}`;
-
-            // Construct the content JSX for this specific question's Accordion
-            const accordionContent = (
-              <Stack tokens={stackTokens} className={styles.questionDetails}>
-                {/* Display Correct/Incorrect Icon + Points INSIDE the content */}
-                <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '10px' }}>
-                  <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+        {/* Enhanced Results Table */}
+        <table className={styles.resultsTable}>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Result</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detailedResults.questionResults.map((question, index) => (
+              <tr key={question.id || index}>
+                <td>{question.title || `Question ${index + 1}`}</td>
+                <td>
+                  <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 6 }}>
                     <Icon
                       iconName={question.isCorrect ? 'CheckMark' : 'Cancel'}
-                      className={question.isCorrect ? styles.correctIcon : styles.incorrectIcon}
+                      style={{
+                        color: question.isCorrect ? '#107c10' : '#d13438',
+                        fontSize: '16px'
+                      }}
                     />
-                    <Text variant="mediumPlus" style={{ fontWeight: FontWeights.semibold }}>
-                      Result: {question.isCorrect ? 'Correct' : 'Incorrect'}
-                    </Text>
+                    <Text>{question.isCorrect ? 'Correct' : 'Incorrect'}</Text>
                   </Stack>
-                  <Text>Points: {question.earnedPoints} / {question.points}</Text>
-                </Stack>
-                <Separator />
+                </td>
+                <td>{question.earnedPoints} / {question.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-                <Stack horizontal tokens={{ childrenGap: 20 }} wrap style={{ marginTop: '10px' }}>
+        <Separator styles={{
+          root: {
+            height: 2,
+            backgroundColor: '#0078d4',
+            marginTop: '24px'
+          }
+        }}>Question Details</Separator>
+
+        {/* Improved Accordion Design */}
+        <div style={{ marginTop: '16px' }}>
+          {detailedResults.questionResults.map((question, index) => {
+            if (!question) return null;
+
+            const simpleAccordionTitle = `Question ${index + 1}: ${question.title || 'Untitled Question'}`;
+
+            const accordionContent = (
+              <div className={styles.questionDetails}>
+                <div className={`${styles.resultStatusBox} ${question.isCorrect ? styles.correct : styles.incorrect}`}>
+                  <Stack horizontal horizontalAlign="space-between" verticalAlign="center">
+                    <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }}>
+                      <Icon
+                        iconName={question.isCorrect ? 'CheckMark' : 'Cancel'}
+                        className={question.isCorrect ? styles.correctIcon : styles.incorrectIcon}
+                      />
+                      <Text variant="mediumPlus" style={{ fontWeight: FontWeights.semibold }}>
+                        Result: {question.isCorrect ? 'Correct' : 'Incorrect'}
+                      </Text>
+                    </Stack>
+                    <Text>Points: {question.earnedPoints} / {question.points}</Text>
+                  </Stack>
+                </div>
+
+                <Stack horizontal tokens={{ childrenGap: 20 }} wrap style={{ marginTop: '16px' }}>
                   <Stack className={styles.detailColumn}>
-                    <Label>Your Answer:</Label>
+                    <Label style={{ color: '#0078d4' }}>Your Answer:</Label>
                     <div className={styles.answerBox}>
-                      { }
                       <Text>{formatAnswer(question.userAnswer)}</Text>
                     </div>
                   </Stack>
 
                   <Stack className={styles.detailColumn}>
-                    <Label>Correct Answer:</Label>
+                    <Label style={{ color: '#0078d4' }}>Correct Answer:</Label>
                     <div className={styles.correctAnswerBox}>
-                      { }
                       <Text>{formatAnswer(question.correctAnswer)}</Text>
                     </div>
                   </Stack>
                 </Stack>
 
                 {question.explanation && (
-                  <MessageBar
-                    messageBarType={MessageBarType.info}
-                    className={styles.explanationBox} // Ensure this class exists in SCSS
-                    styles={{ root: { marginTop: '16px' } }} // Add some top margin
-                  >
-                    <Label>Explanation:</Label>
+                  <div className={styles.explanationBox}>
+                    <Label style={{ color: '#0078d4', marginBottom: '4px' }}>Explanation:</Label>
                     <Text>{question.explanation}</Text>
-                  </MessageBar>
+                  </div>
                 )}
-              </Stack>
+              </div>
             );
 
             return (
-              <Accordion
-                key={question.id || index}
-                title={simpleAccordionTitle}
-                defaultCollapsed={true}
-                className={styles.questionAccordion}
-              >
-                {/* The content goes here, as children */}
-                {accordionContent}
-              </Accordion>
+              <div className={styles.questionAccordion} key={question.id || index}>
+                <Accordion
+                  title={simpleAccordionTitle}
+                  defaultCollapsed={true}
+                  className={question.isCorrect ? styles.correctQuestion : styles.incorrectQuestion}
+                >
+                  {accordionContent}
+                </Accordion>
+              </div>
             );
           })}
         </div>
@@ -362,36 +358,31 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
           {submissionError && (
             <MessageBar
               messageBarType={MessageBarType.error}
-              isMultiline={true} // Allow multiline for potentially longer errors
+              isMultiline={true}
               styles={{ root: { marginBottom: '20px' } }}
             >
-              {submissionError} {/* Display the actual error message */}
+              {submissionError}
             </MessageBar>
           )}
 
-          {/* Show Pivot only if detailed results are available */}
           {detailedResults ? (
             <Pivot
               selectedKey={activeView}
               onLinkClick={(item) => item && setActiveView(item.props.itemKey || 'summary')}
               styles={{ root: { marginBottom: '20px' } }}
-              headersOnly={false} // Ensure content area is shown
+              headersOnly={false}
             >
               <PivotItem headerText="Summary" itemKey="summary">
-                {/* Render summary view content here directly if Pivot handles content */}
                 {renderSummaryView()}
               </PivotItem>
               <PivotItem headerText="Detailed Results" itemKey="details">
-                {/* Render detailed view content here directly */}
                 {renderDetailedView()}
               </PivotItem>
             </Pivot>
           ) : (
-            // If no detailed results, just show summary
             renderSummaryView()
           )}
 
-          {/* Conditionally render buttons based on view or always show */}
           <Stack horizontal horizontalAlign="center" tokens={stackTokens} style={{ marginTop: '20px' }}>
             <PrimaryButton
               text="Retake Quiz"
@@ -399,13 +390,12 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
               iconProps={retakeIcon}
               styles={{ root: { minWidth: '140px' } }}
             />
-            {/* Logic for showing "View Detailed Results" button can be simplified */}
-            {/* Show if detailed results exist and current view is summary */}
             {activeView === 'summary' && detailedResults && (
               <DefaultButton
                 text="View Detailed Results"
                 onClick={() => setActiveView('details')}
                 iconProps={reviewIcon}
+                styles={{ root: { marginLeft: '8px' } }}
               />
             )}
           </Stack>

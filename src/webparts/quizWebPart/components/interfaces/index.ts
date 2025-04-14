@@ -93,6 +93,7 @@ export interface IQuizState {
   showResumeDialog: boolean;
   savedProgressId?: number;
   timeRemaining?: number;
+  correctlyAnsweredQuestions?: number
 }
 
 
@@ -102,7 +103,7 @@ export interface IDetailedQuizResults {
   totalPoints: number;
   totalQuestions: number;
   answeredQuestions: number;
-  correctlyAnsweredQuestions: number;
+  correctlyAnsweredQuestions: number; 
   percentageAnswered: number;
   percentageCorrect: number;
   percentageCorrectOfAnswered: number;
@@ -142,15 +143,15 @@ export interface IQuizResultsProps {
   submissionError: string;
   onRetakeQuiz: () => void;
   messages: {
-    excellent: string;
-    good: string;
-    average: string;
-    poor: string;
-    success: string;
+    excellent?: string;
+    good?: string;
+    average?: string;
+    poor?: string;
+    success?: string;
   };
-  // New field for detailed results
   detailedResults?: IDetailedQuizResults;
 }
+
 
 export interface IQuizQuestionProps {
   question: IQuizQuestion;

@@ -1099,3 +1099,230 @@
   border-color: #0078d4;
   color: #0078d4;
 }
+@import '~@fluentui/react/dist/sass/References.scss';
+
+/* Add these new styles for results display */
+.resultsContainer {
+  text-align: center;
+  max-width: 800px; // Increased from 600px for better layout
+  margin: 0 auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.resultsSummaryCard {
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.resultsStat {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+
+  i {
+    margin-right: 12px;
+    font-size: 20px;
+    color: #0078d4;
+  }
+}
+
+.scoreCircle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+
+  .scoreValue {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .scoreLabel {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+}
+
+.scoreCard {
+  background-color: $ms-color-white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.scoreBadge {
+  width: 160px;
+  height: 160px;
+  border-radius: 80px;
+  margin: 0 auto 24px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.resultsTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 20px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  th {
+    background-color: #0078d4;
+    color: white;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 16px;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #eaeaea;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  tr:hover {
+    background-color: #f0f0f0;
+  }
+}
+
+.questionAccordion {
+  margin-bottom: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #c8c8c8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  :global(.ms-Accordion-button) {
+    background-color: #f9f9f9;
+    padding: 12px;
+    font-weight: 500;
+  }
+
+  :global(.ms-Accordion) {
+    border-radius: 4px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  :global(.ms-Accordion-panel) {
+    padding: 16px;
+  }
+}
+
+.correctQuestion {
+  :global(.ms-Accordion-button) {
+    background-color: rgba(16, 124, 16, 0.1);
+    border-left: 4px solid #107c10;
+  }
+}
+
+.incorrectQuestion {
+  :global(.ms-Accordion-button) {
+    background-color: rgba(209, 52, 56, 0.1);
+    border-left: 4px solid #d13438;
+  }
+}
+
+.answerBox, .correctAnswerBox {
+  padding: 12px;
+  background-color: white;
+  border: 1px solid #eaeaea;
+  border-radius: 4px;
+  min-height: 40px;
+  margin-top: 8px;
+}
+
+.correctAnswerBox {
+  border-color: #107c10;
+  background-color: rgba(16, 124, 16, 0.05);
+}
+
+.questionDetails {
+  padding: 16px;
+  background-color: #f9f9f9;
+  border-radius: 0 0 4px 4px;
+}
+
+.resultStatusBox {
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+
+  &.correct {
+    background-color: rgba(16, 124, 16, 0.1);
+    border: 1px solid rgba(16, 124, 16, 0.3);
+  }
+
+  &.incorrect {
+    background-color: rgba(209, 52, 56, 0.1);
+    border: 1px solid rgba(209, 52, 56, 0.3);
+  }
+}
+
+.explanationBox {
+  margin-top: 16px;
+  background-color: rgba(0, 120, 212, 0.1);
+  border: 1px solid rgba(0, 120, 212, 0.3);
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.correctIcon {
+  color: #107c10;
+  margin-right: 6px;
+}
+
+.incorrectIcon {
+  color: #d13438;
+  margin-right: 6px;
+}
+
+.detailColumn {
+  flex: 1;
+  min-width: 200px;
+  margin-bottom: 12px;
+}
