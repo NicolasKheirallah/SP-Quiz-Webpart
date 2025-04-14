@@ -11,12 +11,13 @@ import {
 } from '@microsoft/sp-property-pane';
 import { IPropertyPaneCustomFieldProps } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
+import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 
 import * as strings from 'QuizWebPartStrings';
 import Quiz from './components/Quiz';
 import { IQuizProps } from './components/IQuizProps';
 import { IQuizPropertyPaneProps, IQuizQuestion, QuestionType } from './components/interfaces';
-import  QuizPropertyPane  from './components/QuizPropertyPane';
+import QuizPropertyPane from './components/QuizPropertyPane';
 
 export interface IQuizWebPartProps {
   title: string;
@@ -36,11 +37,14 @@ export interface IQuizWebPartProps {
   timeLimit: number;
   enableQuestionTimeLimit: boolean;  // New property for enabling per-question time limits
   defaultQuestionTimeLimit: number;  // Default time limit for questions
+  resultsListName: string; // New property to store the name of the list for saving results
 }
 
 export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps> {
   private _reactElement: HTMLElement | null = null;
   private _propertyPaneContainer: HTMLElement | null = null;
+  private _listOptions: { key: string; text: string }[] = [];
+  private _listsLoaded: boolean = false;
 
   public render(): void {
     // Unmount any existing React components
@@ -75,6 +79,7 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
         enableQuestionTimeLimit: this.properties.enableQuestionTimeLimit || false,
         defaultQuestionTimeLimit: this.properties.defaultQuestionTimeLimit || 60,
         questions: this.properties.questions || [],
+        resultsListName: this.properties.resultsListName || 'QuizResults', // Pass the selected list name
         updateQuestions: (questions: IQuizQuestion[]) => {
           this.properties.questions = questions;
           this.render();
@@ -154,6 +159,47 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
     return Version.parse('1.1');
   }
 
+  // Method to fetch available lists
+  private async _getLists(): Promise<void> {
+    if (!this._listsLoaded) {
+      try {
+        const response: SPHttpClientResponse = await this.context.spHttpClient.get(
+          `${this.context.pageContext.web.absoluteUrl}/_api/web/lists?$filter=Hidden eq false and BaseTemplate eq 100&$select=Title`,
+          SPHttpClient.configurations.v1
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          this._listOptions = data.value.map((list: { Title: string }) => ({
+            key: list.Title,
+            text: list.Title
+          }));
+          
+          // Always add QuizResults as a default option if it doesn't exist
+          if (!this._listOptions.some(option => option.key === 'QuizResults')) {
+            this._listOptions.unshift({
+              key: 'QuizResults',
+              text: 'QuizResults (Default)'
+            });
+          }
+          
+          this._listsLoaded = true;
+          this.context.propertyPane.refresh();
+        } else {
+          console.error('Error fetching lists:', response.statusText);
+          this._listOptions = [
+            { key: 'QuizResults', text: 'QuizResults (Default)' }
+          ];
+        }
+      } catch (error) {
+        console.error('Error in _getLists method:', error);
+        this._listOptions = [
+          { key: 'QuizResults', text: 'QuizResults (Default)' }
+        ];
+      }
+    }
+  }
+
   // Initialize default questions if none exist
   protected onPropertyPaneConfigurationStart(): void {
     // Initialize with sample questions if none exist
@@ -186,12 +232,22 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
       ];
     }
 
+    // Set default results list name if not set
+    if (!this.properties.resultsListName) {
+      this.properties.resultsListName = 'QuizResults';
+    }
+
     // Clean up any existing components
     this.disposeReactComponents();
 
     // Create the container for the property pane component
     this._propertyPaneContainer = document.createElement('div');
     this._propertyPaneContainer.className = 'quiz-property-pane-container';
+
+    // Load lists for the dropdown
+    this._getLists().catch(error => {
+      console.error('Error loading lists:', error);
+    });
   }
 
   protected onPropertyPaneConfigurationEnd(): void {
@@ -202,7 +258,7 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
   // Handle property pane changes
   protected onPropertyPaneFieldChanged(propertyPath: string, oldValue: unknown, newValue: unknown): void {
     // If questions were changed, trigger re-render
-    if (propertyPath === 'questions') {
+    if (propertyPath === 'questions' || propertyPath === 'resultsListName') {
       this.render();
     }
 
@@ -274,10 +330,13 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
                   step: 5,
                   showValue: true,
                   value: this.properties.defaultQuestionTimeLimit || 60
-                }) : null
+                }) : null,
+                PropertyPaneDropdown('resultsListName', {
+                  label: 'Quiz Results List',
+                  options: this._listOptions,
+                  selectedKey: this.properties.resultsListName || 'QuizResults'
+                })
               ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
-
-
             },
             {
               groupName: 'Messages',

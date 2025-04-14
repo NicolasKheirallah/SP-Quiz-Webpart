@@ -42,7 +42,7 @@ export interface IQuizQuestion {
   type: QuestionType;
   choices: IChoice[];
   selectedChoice?: string | string[]; // Can be multiple for MultiSelect
-  matchingPairs?: { id: string, left: string, right: string }[]; // For matching questions
+  matchingPairs?: IMatchingPair[];
   correctAnswer?: string; // For short answer
   points?: number; // Optional weighting
   explanation?: string; // Explanation for the answer
@@ -50,7 +50,6 @@ export interface IQuizQuestion {
   caseSensitive?: boolean; // For short answer, whether it's case sensitive
   userAnswer?: string | string[];  // Added for tracking user's answer for detailed results
   isCorrect?: boolean;  // Added for tracking if the question was answered correctly
-  // New fields
   images?: IQuizImage[];
   timeLimit?: number; // Time limit in seconds for this specific question
   codeSnippets?: ICodeSnippet[]; // For code syntax highlighting
@@ -89,17 +88,30 @@ export interface IQuizState {
   quizStarted: boolean;
   overallTimerExpired: boolean;
   expiredQuestions: number[];
-
+  showSaveProgressDialog: boolean;
+  hasSavedProgress: boolean;
+  showResumeDialog: boolean;
+  savedProgressId?: number;
+  timeRemaining?: number;
 }
+
 
 // Interface for detailed quiz results
 export interface IDetailedQuizResults {
   score: number;
   totalPoints: number;
+  totalQuestions: number;
+  answeredQuestions: number;
+  correctlyAnsweredQuestions: number;
+  percentageAnswered: number;
+  percentageCorrect: number;
+  percentageCorrectOfAnswered: number;
   percentage: number;
   questionResults: IQuestionResult[];
   timestamp: string;
 }
+
+
 
 export interface IQuestionResult {
   id: number;
@@ -212,4 +224,38 @@ export interface IQuizPropertyPaneProps {
   questions: IQuizQuestion[];
   onUpdateQuestions: (questions: IQuizQuestion[]) => void;
   context: WebPartContext;
+}
+
+export interface IMatchingPair {
+  id: string;
+  leftItem: string;
+  rightItem: string;
+  userSelectedRightId?: string;
+}
+
+export interface ISavedQuizProgress {
+  id?: number;
+  userId: string;
+  userName: string;
+  quizTitle: string;
+  questions: IQuizQuestion[];
+  lastSaved: string;
+  timeRemaining?: number;
+  currentPage: number;
+  currentCategory: string;
+}
+
+export interface IQuizStartPageProps {
+  title: string;
+  onStartQuiz: () => void;
+  totalQuestions: number;
+  totalPoints: number;
+  categories: string[];
+  timeLimit?: number; // in seconds
+  passingScore?: number; // percentage
+  quizImage?: string; // optional image URL
+  description?: string;
+  hasSavedProgress?: boolean;
+  onResumeQuiz?: () => void;
+
 }

@@ -23,5 +23,6 @@ export interface IQuizProps {
   enableQuestionTimeLimit: boolean;
   defaultQuestionTimeLimit: number;
   questions: IQuizQuestion[];
+  resultsListName: string; // Added property for the list name
   updateQuestions: (questions: IQuizQuestion[]) => void;
 }

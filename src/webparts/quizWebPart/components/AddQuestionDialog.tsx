@@ -5,6 +5,7 @@ import {
   IChoice,
   QuestionType,
   IQuizQuestion,
+  IMatchingPair,
   IQuizImage,
   ICodeSnippet
 } from './interfaces';
@@ -51,7 +52,6 @@ const resetIcon: IIconProps = { iconName: 'Refresh' };
 const cancelIcon: IIconProps = { iconName: 'Cancel' };
 const imageIcon: IIconProps = { iconName: 'Picture' };
 const codeIcon: IIconProps = { iconName: 'Code' };
-// const timerIcon: IIconProps = { iconName: 'Timer' };
 
 // Stack token for spacing
 const stackTokens: IStackTokens = {
@@ -82,7 +82,6 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
   isSubmitting,
   onPreviewQuestion,
   initialQuestion,
-  defaultQuestionTimeLimit,
   context
 }) => {
   const [title, setTitle] = useState('');
@@ -93,6 +92,12 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     { id: uuidv4(), text: '', isCorrect: false },
     { id: uuidv4(), text: '', isCorrect: false },
   ]);
+  const [matchingPairs, setMatchingPairs] = useState<IMatchingPair[]>([
+    { id: uuidv4(), leftItem: '', rightItem: '' },
+    { id: uuidv4(), leftItem: '', rightItem: '' }
+  ]);
+
+
   const [correctChoiceId, setCorrectChoiceId] = useState('');
   const [shortAnswerText, setShortAnswerText] = useState('');
   const [explanation, setExplanation] = useState('');
@@ -164,6 +169,10 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       if (initialQuestion.timeLimit) {
         setTimeLimit(initialQuestion.timeLimit);
       }
+      if (initialQuestion.type === QuestionType.Matching && initialQuestion.matchingPairs) {
+        setMatchingPairs([...initialQuestion.matchingPairs]);
+      }
+
     }
   }, [initialQuestion]);
 
@@ -258,127 +267,149 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     ));
   };
 
-  const handleSubmit = (): void => {
-    // Validation
-    if (!title.trim()) {
-      setValidationError('Question title is required.');
+// Update the handleSubmit and handlePreview methods to include matchingPairs:
+
+const handleSubmit = (): void => {
+  // Validation
+  if (!title.trim()) {
+    setValidationError('Question title is required.');
+    return;
+  }
+
+  if (!category && !newCategory) {
+    setValidationError('Please select or enter a category.');
+    return;
+  }
+
+  // Validate based on question type
+  if (questionType === QuestionType.MultipleChoice || questionType === QuestionType.TrueFalse) {
+    if (choices.filter(c => c.text.trim()).length < 2) {
+      setValidationError('At least 2 valid choices are required.');
       return;
     }
 
-    if (!category && !newCategory) {
-      setValidationError('Please select or enter a category.');
+    if (!choices.some(c => c.isCorrect)) {
+      setValidationError('Please mark at least one choice as correct.');
+      return;
+    }
+  } else if (questionType === QuestionType.MultiSelect) {
+    if (choices.filter(c => c.text.trim()).length < 2) {
+      setValidationError('At least 2 valid choices are required.');
       return;
     }
 
-    // Validate based on question type
-    if (questionType === QuestionType.MultipleChoice || questionType === QuestionType.TrueFalse) {
-      if (choices.filter(c => c.text.trim()).length < 2) {
-        setValidationError('At least 2 valid choices are required.');
-        return;
-      }
-
-      if (!choices.some(c => c.isCorrect)) {
-        setValidationError('Please mark at least one choice as correct.');
-        return;
-      }
-    } else if (questionType === QuestionType.MultiSelect) {
-      if (choices.filter(c => c.text.trim()).length < 2) {
-        setValidationError('At least 2 valid choices are required.');
-        return;
-      }
-
-      if (!choices.some(c => c.isCorrect)) {
-        setValidationError('Please mark at least one choice as correct.');
-        return;
-      }
-    } else if (questionType === QuestionType.ShortAnswer) {
-      if (!shortAnswerText.trim()) {
-        setValidationError('Please enter the correct answer for the short answer question.');
-        return;
-      }
-    }
-
-    // Points validation
-    const pointsValue = parseInt(points, 10);
-    if (isNaN(pointsValue) || pointsValue < 1) {
-      setValidationError('Points must be a positive number.');
+    if (!choices.some(c => c.isCorrect)) {
+      setValidationError('Please mark at least one choice as correct.');
       return;
     }
-
-    // Time limit validation (if set)
-    if (timeLimit !== undefined && (isNaN(timeLimit) || timeLimit < 5 || timeLimit > 3600)) {
-      setValidationError('Time limit must be between 5 seconds and 3600 seconds (1 hour).');
+  } else if (questionType === QuestionType.ShortAnswer) {
+    if (!shortAnswerText.trim()) {
+      setValidationError('Please enter the correct answer for the short answer question.');
       return;
     }
+  } else if (questionType === QuestionType.Matching) {
+    // Validate matching pairs
+    if (matchingPairs.length < 2) {
+      setValidationError('At least 2 matching pairs are required.');
+      return;
+    }
+    
+    // Check if all pairs have both left and right items
+    if (matchingPairs.some(pair => !pair.leftItem.trim() || !pair.rightItem.trim())) {
+      setValidationError('All matching pairs must have both left and right items.');
+      return;
+    }
+  }
 
-    // Create question object
-    const newQuestion: IQuizQuestion = {
-      id: initialQuestion ? initialQuestion.id : Date.now(),
-      title,
-      description: description, // Add the rich text description
-      category: category === 'new' ? newCategory : category,
-      type: questionType,
-      choices: choices.filter(c => c.text.trim()), // Filter out empty choices
-      correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
-      explanation: explanation.trim() || undefined,
-      points: pointsValue,
-      caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
-      // Add timestamp for tracking
-      lastModified: new Date().toISOString(),
-      // Add new feature fields
-      images: images.length > 0 ? images : undefined,
-      codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
-      timeLimit: timeLimitEnabled ? timeLimit : undefined
-    };
+  // Points validation
+  const pointsValue = parseInt(points, 10);
+  if (isNaN(pointsValue) || pointsValue < 1) {
+    setValidationError('Points must be a positive number.');
+    return;
+  }
 
-    onSubmit(newQuestion);
+  // Time limit validation (if set)
+  if (timeLimit !== undefined && (isNaN(timeLimit) || timeLimit < 5 || timeLimit > 3600)) {
+    setValidationError('Time limit must be between 5 seconds and 3600 seconds (1 hour).');
+    return;
+  }
+
+  // Create question object
+  const newQuestion: IQuizQuestion = {
+    id: initialQuestion ? initialQuestion.id : Date.now(),
+    title,
+    description: description, // Add the rich text description
+    category: category === 'new' ? newCategory : category,
+    type: questionType,
+    choices: choices.filter(c => c.text.trim()), // Filter out empty choices
+    correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
+    explanation: explanation.trim() || undefined,
+    points: pointsValue,
+    caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
+    // Add matching pairs if it's a matching question
+    matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
+    // Add timestamp for tracking
+    lastModified: new Date().toISOString(),
+    // Add new feature fields
+    images: images.length > 0 ? images : undefined,
+    codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+    timeLimit: timeLimitEnabled ? timeLimit : undefined
   };
 
-  const handlePreview = (): void => {
-    // Create question object for preview
-    const previewQuestion: IQuizQuestion = {
-      id: initialQuestion ? initialQuestion.id : Date.now(),
-      title,
-      description: description, // Add the rich text description
-      category: category === 'new' ? newCategory : category,
-      type: questionType,
-      choices: choices.filter(c => c.text.trim()), // Filter out empty choices
-      correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
-      explanation: explanation.trim() || undefined,
-      points: parseInt(points, 10) || 1,
-      caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
-      // Add new feature fields for preview
-      images: images.length > 0 ? images : undefined,
-      codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
-      timeLimit: timeLimit
-    };
+  onSubmit(newQuestion);
+};
 
-    onPreviewQuestion(previewQuestion);
+const handlePreview = (): void => {
+  // Create question object for preview
+  const previewQuestion: IQuizQuestion = {
+    id: initialQuestion ? initialQuestion.id : Date.now(),
+    title,
+    description: description, // Add the rich text description
+    category: category === 'new' ? newCategory : category,
+    type: questionType,
+    choices: choices.filter(c => c.text.trim()), // Filter out empty choices
+    correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
+    explanation: explanation.trim() || undefined,
+    points: parseInt(points, 10) || 1,
+    caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
+    // Add matching pairs if it's a matching question
+    matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
+    // Add new feature fields for preview
+    images: images.length > 0 ? images : undefined,
+    codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+    timeLimit: timeLimit
   };
 
-  const resetForm = (): void => {
-    setTitle('');
-    setCategory('');
-    setNewCategory('');
-    setQuestionType(QuestionType.MultipleChoice);
-    setChoices([
-      { id: uuidv4(), text: '', isCorrect: false },
-      { id: uuidv4(), text: '', isCorrect: false },
-    ]);
-    setCorrectChoiceId('');
-    setShortAnswerText('');
-    setExplanation('');
-    setPoints('1');
-    setCaseSensitive(false);
-    setValidationError('');
-    setDescription('');
-    // Reset new feature fields
-    setImages([]);
-    setCodeSnippets([]);
-    setTimeLimit(undefined);
-    setAddingImage(false);
-    setAddingCodeSnippet(false);
-  };
+  onPreviewQuestion(previewQuestion);
+};
+
+
+const resetForm = (): void => {
+  setTitle('');
+  setCategory('');
+  setNewCategory('');
+  setQuestionType(QuestionType.MultipleChoice);
+  setChoices([
+    { id: uuidv4(), text: '', isCorrect: false },
+    { id: uuidv4(), text: '', isCorrect: false },
+  ]);
+  setMatchingPairs([
+    { id: uuidv4(), leftItem: '', rightItem: '' },
+    { id: uuidv4(), leftItem: '', rightItem: '' }
+  ]);
+  setCorrectChoiceId('');
+  setShortAnswerText('');
+  setExplanation('');
+  setPoints('1');
+  setCaseSensitive(false);
+  setValidationError('');
+  setDescription('');
+  setImages([]);
+  setCodeSnippets([]);
+  setTimeLimit(undefined);
+  setAddingImage(false);
+  setAddingCodeSnippet(false);
+};
 
   // Generate category dropdown options
   const categoryOptions: IDropdownOption[] = [
@@ -391,8 +422,10 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     { key: QuestionType.MultipleChoice, text: 'Multiple Choice' },
     { key: QuestionType.TrueFalse, text: 'True/False' },
     { key: QuestionType.MultiSelect, text: 'Multiple Select' },
-    { key: QuestionType.ShortAnswer, text: 'Short Answer' }
+    { key: QuestionType.ShortAnswer, text: 'Short Answer' },
+    { key: QuestionType.Matching, text: 'Matching' }
   ];
+
 
   // For True/False, create choice group options
   const tfOptions: IChoiceGroupOption[] = [
@@ -590,6 +623,68 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
             />
           </div>
         );
+      case QuestionType.Matching: {
+        return (
+          <div className={styles.matchingContainer}>
+            <Text styles={formSectionTitleStyles}>Create Matching Pairs</Text>
+
+            {matchingPairs.map((pair, idx) => (
+              <div key={pair.id} className={styles.matchingPairRow}>
+                <Stack horizontal tokens={{ childrenGap: 12 }}>
+                  <TextField
+                    label={`Left Item ${idx + 1}`}
+                    value={pair.leftItem}
+                    onChange={(_e, value) => {
+                      const updatedPairs = [...matchingPairs];
+                      updatedPairs[idx].leftItem = value || '';
+                      setMatchingPairs(updatedPairs);
+                    }}
+                    className={styles.matchingItemField}
+                  />
+
+                  <TextField
+                    label={`Right Item ${idx + 1}`}
+                    value={pair.rightItem}
+                    onChange={(_e, value) => {
+                      const updatedPairs = [...matchingPairs];
+                      updatedPairs[idx].rightItem = value || '';
+                      setMatchingPairs(updatedPairs);
+                    }}
+                    className={styles.matchingItemField}
+                  />
+
+                  <IconButton
+                    iconProps={deleteIcon}
+                    title="Remove Pair"
+                    ariaLabel="Remove Matching Pair"
+                    onClick={() => {
+                      const updatedPairs = matchingPairs.filter((_, i) => i !== idx);
+                      setMatchingPairs(updatedPairs);
+                    }}
+                    className={styles.matchingDeleteButton}
+                    disabled={matchingPairs.length <= 2}
+                  />
+                </Stack>
+              </div>
+            ))}
+
+            <DefaultButton
+              iconProps={addIcon}
+              text="Add Matching Pair"
+              onClick={() => {
+                const newPair: IMatchingPair = {
+                  id: uuidv4(),
+                  leftItem: '',
+                  rightItem: ''
+                };
+
+                setMatchingPairs([...matchingPairs, newPair]);
+              }}
+              className={styles.addPairButton}
+            />
+          </div>
+        );
+      }
 
       default:
         return null;
@@ -681,7 +776,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 const newType = option.key as QuestionType;
                 setQuestionType(newType);
 
-                // Reset choices based on type
+                // Reset or initialize different fields based on question type
                 if (newType === QuestionType.TrueFalse) {
                   setChoices([
                     { id: 'true', text: 'True', isCorrect: false },
@@ -696,11 +791,18 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                       { id: uuidv4(), text: '', isCorrect: false }
                     ]);
                   }
+                } else if (newType === QuestionType.Matching) {
+                  // Initialize with two empty matching pairs
+                  setMatchingPairs([
+                    { id: uuidv4(), leftItem: '', rightItem: '' },
+                    { id: uuidv4(), leftItem: '', rightItem: '' }
+                  ]);
                 }
               }
             }}
             options={questionTypeOptions}
           />
+
 
           <Dropdown
             label="Category"

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { IQuizProps } from './IQuizProps';
-import { IQuizState, IQuizQuestion, QuestionType } from './interfaces';
+import { IQuizState, IQuizQuestion, QuestionType, ISavedQuizProgress } from './interfaces';
 import { IDetailedQuizResults, IQuestionResult } from './interfaces';
 import QuizProgressTracker from './QuizProgressTracker';
 import { WebPartTitle } from "@pnp/spfx-controls-react/lib/WebPartTitle";
@@ -13,7 +13,6 @@ import QuestionPreview from './QuestionPreview';
 import { DisplayMode } from '@microsoft/sp-core-library';
 import QuizStartPage from './QuizStartPage';
 import QuizTimer from './QuizTimer';
-
 import {
   Spinner,
   SpinnerSize,
@@ -44,6 +43,7 @@ const addIcon: IIconProps = { iconName: 'Add' };
 const importIcon: IIconProps = { iconName: 'Download' };
 const submitIcon: IIconProps = { iconName: 'CheckMark' };
 const exportIcon: IIconProps = { iconName: 'Upload' };
+const saveIcon: IIconProps = { iconName: 'Save' };
 
 // Styles
 const mainContainerStyles: IStackStyles = {
@@ -107,7 +107,11 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       showStartPage: true,
       quizStarted: false,
       overallTimerExpired: false,
-      expiredQuestions: []
+      expiredQuestions: [],
+      showSaveProgressDialog: false,
+      hasSavedProgress: false,
+      showResumeDialog: false
+
 
 
     };
@@ -122,12 +126,17 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       choices: [
         { id: uuidv4(), text: '', isCorrect: false },
         { id: uuidv4(), text: '', isCorrect: false },
-      ]
+      ],
+      matchingPairs: []
     };
   }
 
+
   public componentDidMount(): void {
     this.randomizeQuestionsIfNeeded();
+    this.checkForSavedProgress().catch((error) =>
+      console.error("Error in checkForSavedProgress:", error)
+    );
   }
 
   public componentDidUpdate(prevProps: IQuizProps): void {
@@ -180,13 +189,89 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
 
     this.setState({ questions: updatedQuestions });
   }
+  private getTimeRemaining(): number {
+    return this.state.timeRemaining || 0;
+
+  }
+
+  private setRemainingTime(seconds: number): void {
+    this.setState({ timeRemaining: seconds });
+  }
+
+  private handleSaveProgressClick = (): void => {
+    this.setState({ showSaveProgressDialog: true });
+  };
+
+  private handleSaveProgressCancel = (): void => {
+    this.setState({ showSaveProgressDialog: false });
+  };
+
+  private handleSaveProgressConfirm = async (): Promise<void> => {
+    try {
+      await this.saveQuizProgress();
+    } catch (error) {
+      console.error("Error saving quiz progress:", error);
+      this.setState({
+        submissionError: error instanceof Error ? error.message : 'Failed to save progress',
+        isSubmitting: false
+      });
+    }
+  };
 
 
+
+  private discardSavedProgress = async (): Promise<void> => {
+    try {
+      if (!this.state.savedProgressId) return;
+
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      const progressListName = "QuizProgress";
+
+      // Delete the saved progress
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${this.state.savedProgressId})`;
+
+      await spHttpClient.fetch(
+        endpoint,
+        SPHttpClient.configurations.v1,
+        {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'DELETE'
+          }
+        }
+      );
+
+      this.setState({
+        savedProgressId: undefined,
+        hasSavedProgress: false,
+        showResumeDialog: false
+      });
+
+      // Start a new quiz
+      this.handleStartQuiz();
+
+    } catch (error) {
+      console.error('Error discarding saved progress:', error);
+      // Handle the error or just start a new quiz anyway
+      this.setState({ showResumeDialog: false });
+      this.handleStartQuiz();
+    }
+  };
+
+
+  // This is the updated saveQuizResults method to use the selected list name
   private saveQuizResults = async (): Promise<boolean> => {
     try {
       const spHttpClient = this.props.context.spHttpClient;
       const webUrl = this.props.context.pageContext.web.absoluteUrl;
       const currentUser = this.props.context.pageContext.user;
+
+      // Use the list name from props (selected in property pane)
+      const resultsListName = this.props.resultsListName || 'QuizResults';
 
       // Calculate the score percentage properly
       const scorePercentage = this.state.totalPoints > 0
@@ -237,12 +322,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         QuestionDetails: JSON.stringify(questionResults)
       };
 
-      console.log('Saving quiz results:', resultData);
+      console.log(`Saving quiz results to list: ${resultsListName}`, resultData);
 
-      // Save result to existing QuizResults list
+      // Save result to the selected list
       try {
         const response = await spHttpClient.post(
-          `${webUrl}/_api/web/lists/getbytitle('QuizResults')/items`,
+          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/items`,
           SPHttpClient.configurations.v1,
           {
             headers: {
@@ -261,11 +346,11 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         }
 
         const responseData = await response.json();
-        console.log('Quiz results saved successfully:', responseData);
+        console.log(`Quiz results saved successfully to ${resultsListName}:`, responseData);
 
         return true;
       } catch (error) {
-        console.error('Error saving to QuizResults list:', error);
+        console.error(`Error saving to ${resultsListName} list:`, error);
         throw error;
       }
     } catch (error) {
@@ -283,12 +368,493 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   }
 
 
+  private getCorrectAnswerText = (question: IQuizQuestion): string | string[] | undefined => {
+    switch (question.type) {
+      case QuestionType.MultipleChoice:
+      case QuestionType.TrueFalse: {
+        const correctChoice = question.choices.find(c => c.isCorrect);
+        return correctChoice ? correctChoice.text : undefined;
+      }
+      case QuestionType.MultiSelect: {
+        const correctChoices = question.choices.filter(c => c.isCorrect).map(c => c.text);
+        return correctChoices.length > 0 ? correctChoices : undefined;
+      }
+      case QuestionType.ShortAnswer:
+        return question.correctAnswer;
+      case QuestionType.Matching: {
+        if (question.matchingPairs) {
+          return question.matchingPairs.map(pair => `${pair.leftItem} → ${pair.rightItem}`);
+        }
+        return undefined;
+      }
+      default:
+        return undefined;
+    }
+  };
+
+
+  private checkForSavedProgress = async (): Promise<void> => {
+    try {
+      // Only check for saved progress in read mode
+      if (this.props.displayMode !== DisplayMode.Read) return;
+
+      console.log("Checking for saved progress...");
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      const currentUser = context.pageContext.user;
+
+      // Use the same list as quiz results or a dedicated progress list
+      const progressListName = "QuizProgress";
+
+      // Query for saved progress for this user and quiz
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUser.loginName}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
+
+      console.log(`Checking saved progress at endpoint: ${endpoint}`);
+
+      try {
+        const response = await spHttpClient.get(
+          endpoint,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'odata-version': ''
+            }
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error response when checking for saved progress: ${errorText}`);
+          return;
+        }
+
+        const data = await response.json();
+        console.log("Saved progress check response:", data);
+
+        if (data.value && data.value.length > 0) {
+          // Found saved progress
+          const savedProgress = data.value[0];
+          console.log("Found saved progress:", savedProgress);
+
+          this.setState({
+            hasSavedProgress: true,
+            savedProgressId: savedProgress.Id
+          });
+
+          // Only show resume dialog in read mode and on start page
+          if (this.state.showStartPage) {
+            this.setState({ showResumeDialog: true });
+          }
+        } else {
+          console.log("No saved progress found");
+        }
+      } catch (error) {
+        console.error('Error in API call when checking for saved progress:', error);
+      }
+    } catch (error) {
+      console.error('Error checking for saved progress:', error);
+    }
+  };
+
+  private saveQuizProgress = async (): Promise<boolean> => {
+    try {
+      this.setState({ isSubmitting: true });
+
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      const currentUser = context.pageContext.user;
+
+      // Use a dedicated list for progress
+      const progressListName = "QuizProgress";
+
+      // Prepare progress data
+      const progressData: ISavedQuizProgress = {
+        userId: currentUser.loginName || 'Unknown',
+        userName: currentUser.displayName || 'Anonymous',
+        quizTitle: this.props.title || 'SharePoint Quiz',
+        questions: this.state.questions,
+        lastSaved: new Date().toISOString(),
+        timeRemaining: this.props.timeLimit ? this.getTimeRemaining() : undefined,
+        currentPage: this.state.currentPage,
+        currentCategory: this.state.currentCategory
+      };
+      // Convert to SharePoint item format
+      const spItemData = {
+        Title: `${this.props.title} - ${currentUser.displayName} - In Progress`,
+        UserId: progressData.userId,
+        UserName: progressData.userName,
+        QuizTitle: progressData.quizTitle,
+        QuizData: JSON.stringify(progressData),
+        LastSaved: progressData.lastSaved
+      };
+
+      console.log("Saving quiz progress:", {
+        listName: progressListName,
+        progressData: progressData,
+        spItemData: spItemData,
+        savedProgressId: this.state.savedProgressId
+      });
+
+      // Decide whether to create or update based on savedProgressId
+      let endpoint = '';
+      let method = '';
+      const headers: HeadersInit = {
+        'Accept': 'application/json;odata=nometadata',
+        'Content-type': 'application/json;odata=nometadata',
+        'odata-version': ''
+      };
+
+      if (this.state.savedProgressId) {
+        // Update existing record
+        endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${this.state.savedProgressId})`;
+        method = 'POST';  // Use POST instead of MERGE
+        headers['X-HTTP-Method'] = 'MERGE';  // Add X-HTTP-Method override
+        headers['IF-MATCH'] = '*';
+      } else {
+        // Create new record
+        endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items`;
+        method = 'POST';
+      }
+
+      console.log(`Saving to endpoint: ${endpoint} with method: ${method}`);
+
+      try {
+        const response = await spHttpClient.fetch(
+          endpoint,
+          SPHttpClient.configurations.v1,
+          {
+            method,
+            headers,
+            body: JSON.stringify(spItemData)
+          }
+        );
+
+        // Log response status
+        console.log(`Response status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Error response from SharePoint:', errorData);
+          throw new Error(`Failed to save progress: ${JSON.stringify(errorData)}`);
+        }
+
+        // If this is a new record, get the ID
+        if (!this.state.savedProgressId) {
+          const responseData = await response.json();
+          console.log("Save response data:", responseData);
+          this.setState({ savedProgressId: responseData.Id });
+        }
+
+        // Display success message
+        this.setState({
+          hasSavedProgress: true,
+          isSubmitting: false,
+          showSaveProgressDialog: false,
+          submissionSuccess: true
+        });
+
+        // Show temporary success message
+        alert("Your progress has been saved successfully! You can resume this quiz later.");
+
+        return true;
+      } catch (error) {
+        console.error('Error in API call:', error);
+        throw error; // Re-throw to be caught by outer catch
+      }
+    } catch (error) {
+      console.error('Error saving quiz progress:', error);
+
+      // Create a user-friendly error message
+      let errorMessage = 'Error saving progress';
+      if (error instanceof Error) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
+      this.setState({
+        submissionError: errorMessage,
+        isSubmitting: false,
+        showSaveProgressDialog: false
+      });
+
+      // Show error to user
+      alert(`Failed to save quiz progress: ${errorMessage}`);
+
+      return false;
+    }
+  };
+
+  /**
+   * Resumes a previously saved quiz session from SharePoint
+   * Retrieves the saved state and restores it to the component
+   */
+  private resumeQuiz = async (): Promise<void> => {
+    try {
+      this.setState({
+        loading: true,
+        submissionError: '',
+        showResumeDialog: false // Immediately close the resume dialog
+      });
+
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+
+      // Get saved progress from the QuizProgress list
+      const progressListName = "QuizProgress";
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${this.state.savedProgressId})`;
+
+      console.log(`Fetching saved quiz progress from: ${endpoint}`);
+
+      const response = await spHttpClient.get(
+        endpoint,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'odata-version': ''
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error response when retrieving saved progress: ${errorText}`);
+        throw new Error(`Failed to retrieve saved progress: ${response.status} ${response.statusText}`);
+      }
+
+      const savedItem = await response.json();
+      console.log("Retrieved saved quiz item:", savedItem);
+
+      if (!savedItem.QuizData) {
+        throw new Error("Saved progress data is missing or corrupted");
+      }
+
+      // Parse the saved quiz data
+      let progressData: ISavedQuizProgress;
+      try {
+        progressData = JSON.parse(savedItem.QuizData) as ISavedQuizProgress;
+        console.log("Parsed quiz progress data:", progressData);
+      } catch (parseError) {
+        console.error("Error parsing saved QuizData JSON:", parseError);
+        throw new Error("Could not parse saved quiz data. The data may be corrupted.");
+      }
+
+      // Validate and merge saved questions with current question set
+      const mergedQuestions = progressData.questions
+        .filter(savedQuestion => this.isValidQuizQuestion(savedQuestion))
+        .map((savedQuestion: Partial<IQuizQuestion>) => {
+          // Find the matching original question to preserve any updated properties
+          const originalQuestion = this.state.originalQuestions.find(q => q.id === savedQuestion.id);
+
+          if (originalQuestion) {
+            // Combine the original question with the saved one, prioritizing saved data
+            return {
+              ...originalQuestion,
+              ...savedQuestion,
+              // Ensure selected choices are preserved
+              selectedChoice: savedQuestion.selectedChoice
+            } as IQuizQuestion;
+          } else {
+            // If we can't find the original question, just use the saved question
+            return savedQuestion as IQuizQuestion;
+          }
+        });
+
+      if (mergedQuestions.length === 0) {
+        throw new Error("No valid questions found in saved quiz data");
+      }
+
+      // Count answered questions
+      const answeredQuestions = mergedQuestions.filter(q => q.selectedChoice !== undefined).length;
+
+      // Restore quiz state
+      this.setState({
+        questions: mergedQuestions,
+        currentPage: progressData.currentPage || 1,
+        currentCategory: progressData.currentCategory || 'All',
+        showStartPage: false,
+        quizStarted: true,
+        loading: false,
+        answeredQuestions,
+        showResumeDialog: false
+      });
+
+      // If there was a time limit, restore remaining time
+      if (progressData.timeRemaining !== undefined && this.props.timeLimit) {
+        this.setRemainingTime(progressData.timeRemaining);
+      }
+
+      console.log("Quiz successfully resumed with", mergedQuestions.length, "questions");
+
+      // Delete the saved progress after successful resume
+      await this.deleteSavedProgress(this.state.savedProgressId);
+
+    } catch (error) {
+      console.error('Error resuming quiz:', error);
+
+      // Create a user-friendly error message
+      let errorMessage = 'Failed to resume quiz';
+      if (error instanceof Error) {
+        errorMessage = `Failed to resume quiz: ${error.message}`;
+      }
+
+      this.setState({
+        loading: false,
+        submissionError: errorMessage,
+        showResumeDialog: false
+      });
+
+      // Show error to user
+      alert(`${errorMessage} Starting a new quiz instead.`);
+
+      // Fall back to starting a new quiz
+      this.handleStartQuiz();
+    }
+  };
+
+  // Validation method
+  private isValidQuizQuestion(obj: unknown): obj is IQuizQuestion {
+    if (!obj || typeof obj !== 'object') return false;
+
+    const questionCandidate = obj as Partial<IQuizQuestion>;
+
+    return (
+      // Check for required properties
+      typeof questionCandidate.id === 'number' &&
+      typeof questionCandidate.title === 'string' &&
+      typeof questionCandidate.category === 'string' &&
+      typeof questionCandidate.type === 'string' &&
+      Array.isArray(questionCandidate.choices) &&
+      // Additional optional checks
+      questionCandidate.choices.every(choice =>
+        typeof choice === 'object' &&
+        typeof choice.id === 'string' &&
+        typeof choice.text === 'string' &&
+        typeof choice.isCorrect === 'boolean'
+      )
+    );
+  }
+
+
+  private deleteSavedProgress = async (progressId?: number): Promise<void> => {
+    if (!progressId) return;
+
+    try {
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      const progressListName = "QuizProgress";
+
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${progressId})`;
+
+      await spHttpClient.fetch(
+        endpoint,
+        SPHttpClient.configurations.v1,
+        {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'DELETE'
+          }
+        }
+      );
+
+      console.log(`Saved progress ${progressId} deleted successfully`);
+
+      // Reset saved progress state
+      this.setState({
+        savedProgressId: undefined,
+        hasSavedProgress: false
+      });
+    } catch (error) {
+      console.error('Error deleting saved progress:', error);
+    }
+  };
+
+
+  private renderSaveProgressDialog = (): JSX.Element | null => {
+    if (!this.state.showSaveProgressDialog) return null;
+
+    return (
+      <Dialog
+        hidden={false}
+        onDismiss={this.handleSaveProgressCancel}
+        dialogContentProps={{
+          type: DialogType.normal,
+          title: 'Save Progress',
+          subText: 'Do you want to save your progress and continue later? You can resume from where you left off.'
+        }}
+        modalProps={{
+          isBlocking: true,
+          styles: { main: { maxWidth: 450 } }
+        }}
+      >
+        {this.state.submissionError && (
+          <MessageBar
+            messageBarType={MessageBarType.error}
+            isMultiline={false}
+            dismissButtonAriaLabel="Close"
+            styles={{ root: { marginBottom: 15 } }}
+          >
+            {this.state.submissionError}
+          </MessageBar>
+        )}
+        <DialogFooter>
+          <PrimaryButton
+            onClick={this.handleSaveProgressConfirm}
+            text="Save Progress"
+            disabled={this.state.isSubmitting}
+          />
+          <DefaultButton
+            onClick={this.handleSaveProgressCancel}
+            text="Cancel"
+            disabled={this.state.isSubmitting}
+          />
+          {this.state.isSubmitting && (
+            <Spinner size={SpinnerSize.small} style={{ marginLeft: 10 }} />
+          )}
+        </DialogFooter>
+      </Dialog>
+    );
+  };
+
+
+  // Add dialog rendering for resume quiz
+  private renderResumeDialog = (): JSX.Element | null => {
+    if (!this.state.showResumeDialog) return null;
+
+    return (
+      <Dialog
+        hidden={false}
+        onDismiss={() => this.setState({ showResumeDialog: false })}
+        dialogContentProps={{
+          type: DialogType.normal,
+          title: 'Resume Quiz',
+          subText: 'You have a saved quiz in progress. Would you like to resume where you left off?'
+        }}
+        modalProps={{
+          isBlocking: true,
+          styles: { main: { maxWidth: 450 } }
+        }}
+      >
+        <DialogFooter>
+          <PrimaryButton onClick={this.resumeQuiz} text="Resume Quiz" />
+          <DefaultButton onClick={this.discardSavedProgress} text="Start New Quiz" />
+        </DialogFooter>
+      </Dialog>
+    );
+  };
+
   private handleQuestionTimeExpired = (questionId: number): void => {
     // Add this expired question ID to a tracking array
     this.setState(prevState => ({
       expiredQuestions: [...(prevState.expiredQuestions || []), questionId]
     }));
-    
+
     // Optionally, you can choose to automatically advance to the next question
     // This is commented out by default, but can be enabled based on requirements
     /*
@@ -300,7 +866,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       this.handlePageChange(currentPage + 1);
     }
     */
-    
+
     // You could also choose to mark this question with a default answer
     // For example, for multiple choice questions, you might select the first option
     /*
@@ -337,7 +903,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     }
     */
   }
-  
+
   // Helper to determine if a question is correct
   private isQuestionCorrect = (question: IQuizQuestion): boolean => {
     // If the question wasn't answered, it's not correct
@@ -349,7 +915,6 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       switch (question.type) {
         case QuestionType.MultipleChoice:
         case QuestionType.TrueFalse: {
-          // For single-choice questions, check if the selected choice is marked as correct
           const selectedChoiceId = question.selectedChoice as string;
           const correctChoice = question.choices.find(c => c.id === selectedChoiceId && c.isCorrect);
           return !!correctChoice;
@@ -397,6 +962,29 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             : userAnswer.toLowerCase() === correctAnswer.toLowerCase();
         }
 
+        // Add this case for matching questions
+        case QuestionType.Matching: {
+          // For matching questions, we need to verify that all pairs are correctly matched
+          if (!Array.isArray(question.selectedChoice) || !question.matchingPairs) {
+            return false;
+          }
+
+          // The selectedChoice array contains strings in the format "leftId:rightId"
+          // Parse these into a map for easier checking
+          const userSelections = new Map<string, string>();
+          question.selectedChoice.forEach(selection => {
+            if (typeof selection === 'string') {
+              const [leftId, rightId] = selection.split(':');
+              userSelections.set(leftId, rightId);
+            }
+          });
+
+          return question.matchingPairs.every(pair => {
+            const userSelectedRightId = userSelections.get(pair.id);
+            return userSelectedRightId === pair.id;
+          });
+        }
+
         default:
           return false;
       }
@@ -405,6 +993,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       return false; // Fail safe
     }
   };
+
   // Fisher-Yates shuffle algorithm
   private shuffleArray<T>(array: T[]): T[] {
     const newArray = [...array];
@@ -448,7 +1037,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       }
     );
   }
-  
+
 
   private handleAnswerSelect = (questionId: number, choiceId: string | string[]): void => {
     const updatedQuestions = [...this.state.questions];
@@ -468,19 +1057,43 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   }
 
   private handlePageChange = (page: number): void => {
-    this.setState({ currentPage: page });
-  }
+    this.setState({ currentPage: page }, () => {
+      const questionsContainer = document.querySelector(`.${styles.questionsContainer}`);
+      if (questionsContainer) {
+        questionsContainer.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      } else {
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
+    });
+  };
   private prepareDetailedResults = (
     questions: IQuizQuestion[],
     score: number,
     totalPoints: number
   ): IDetailedQuizResults => {
-    // Calculate percentage
-    const percentage = Math.round((score / totalPoints) * 100);
+    // Track all questions
+    const totalQuestions = questions.length;
+    const answeredQuestions = questions.filter(q => q.selectedChoice !== undefined).length;
+    const correctlyAnsweredQuestions = questions.filter(q =>
+      q.selectedChoice !== undefined && this.isQuestionCorrect(q)
+    ).length;
+
+    // Calculate percentages based on ALL questions
+    const percentageAnswered = Math.round((answeredQuestions / totalQuestions) * 100);
+    const percentageCorrect = Math.round((correctlyAnsweredQuestions / totalQuestions) * 100);
+    const percentageCorrectOfAnswered = answeredQuestions > 0
+      ? Math.round((correctlyAnsweredQuestions / answeredQuestions) * 100)
+      : 0;
 
     // Prepare question-by-question results
     const questionResults: IQuestionResult[] = questions.map(question => {
-      // Skip questions that weren't answered
+      // Handle unanswered questions
       if (question.selectedChoice === undefined) {
         return {
           id: question.id,
@@ -498,10 +1111,52 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       const isCorrect = this.isQuestionCorrect(question);
       const points = question.points || 1;
 
+      // Format user answer for display
+      let formattedUserAnswer: string | string[] | undefined;
+
+      switch (question.type) {
+        case QuestionType.MultipleChoice:
+        case QuestionType.TrueFalse: {
+          const selectedChoice = question.choices.find(c => c.id === question.selectedChoice);
+          formattedUserAnswer = selectedChoice ? selectedChoice.text : undefined;
+          break;
+        }
+
+        case QuestionType.MultiSelect: {
+          if (Array.isArray(question.selectedChoice)) {
+            formattedUserAnswer = question.choices
+              .filter(choice => question.selectedChoice?.includes(choice.id))
+              .map(choice => choice.text);
+          }
+          break;
+        }
+
+        case QuestionType.Matching: {
+          if (Array.isArray(question.selectedChoice)) {
+            const userSelections = question.selectedChoice.map(selection => {
+              if (typeof selection === 'string') {
+                const [leftId, rightId] = selection.split(':');
+                const leftItem = question.matchingPairs?.find(p => p.id === leftId)?.leftItem;
+                const rightItem = question.matchingPairs?.find(p => p.id === rightId)?.rightItem;
+                return leftItem && rightItem ? `${leftItem} → ${rightItem}` : '';
+              }
+              return '';
+            }).filter(Boolean);
+
+            formattedUserAnswer = userSelections.length > 0 ? userSelections : undefined;
+          }
+          break;
+        }
+
+        case QuestionType.ShortAnswer:
+          formattedUserAnswer = question.selectedChoice as string;
+          break;
+      }
+
       return {
         id: question.id,
         title: question.title,
-        userAnswer: question.selectedChoice,
+        userAnswer: formattedUserAnswer,
         correctAnswer: this.getCorrectAnswerText(question),
         isCorrect,
         points,
@@ -513,83 +1168,81 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     return {
       score,
       totalPoints,
-      percentage,
+      totalQuestions,
+      answeredQuestions,
+      correctlyAnsweredQuestions,
+      percentageAnswered,
+      percentageCorrect,
+      percentageCorrectOfAnswered,
+      percentage: Math.round((score / totalPoints) * 100),
       questionResults,
       timestamp: new Date().toISOString()
     };
   };
 
-  // Helper method to get correct answer text for display
-  private getCorrectAnswerText = (question: IQuizQuestion): string | string[] | undefined => {
-    switch (question.type) {
-      case QuestionType.MultipleChoice:
-      case QuestionType.TrueFalse: {
-        const correctChoice = question.choices.find(c => c.isCorrect);
-        return correctChoice ? correctChoice.text : undefined;
-      }
-      case QuestionType.MultiSelect: {
-        const correctChoices = question.choices.filter(c => c.isCorrect).map(c => c.text);
-        return correctChoices.length > 0 ? correctChoices : undefined;
-      }
-      case QuestionType.ShortAnswer:
-        return question.correctAnswer;
-      default:
-        return undefined;
-    }
-  };
 
   private handleSubmitQuiz = async (): Promise<void> => {
-    this.setState({ isSubmitting: true, submissionError: '' });
+    this.setState({
+      isSubmitting: true,
+      submissionError: ''
+    });
 
     try {
-      // Calculate score with better validation
-      let score = 0;
-      let totalPoints = 0;
-      let answeredQuestions = 0;
+      // Calculate points for ALL questions
+      let totalQuizPoints = 0;
+      let earnedPoints = 0;
       const allQuestions = this.state.questions;
 
-      // First, count answered questions and calculate total possible points
+      // Calculate total possible points and earned points
       allQuestions.forEach(question => {
-        // Only include questions that have been answered in our calculations
-        if (question.selectedChoice !== undefined) {
-          answeredQuestions++;
-          const points = question.points || 1;
-          totalPoints += points;
+        // Get points for this question (default to 1 if not specified)
+        const questionPoints = question.points || 1;
+        totalQuizPoints += questionPoints;
 
-          // Determine if the answer is correct
-          const isCorrect = this.isQuestionCorrect(question);
-
-          // Add to score if correct
-          if (isCorrect) {
-            score += points;
-          }
+        // Only add points if the question was answered and correct
+        if (question.selectedChoice !== undefined && this.isQuestionCorrect(question)) {
+          earnedPoints += questionPoints;
         }
       });
 
       // Save results to SharePoint list
       const savedSuccessfully = await this.saveQuizResults();
 
+      // Prepare detailed results with comprehensive metrics
+      const detailedResults = this.prepareDetailedResults(
+        allQuestions,
+        earnedPoints,
+        totalQuizPoints
+      );
+
       // Log the results for debugging
       console.log('Quiz submission results:', {
-        score,
-        totalPoints,
-        answeredQuestions,
+        totalQuizPoints,
+        earnedPoints,
         savedSuccessfully
       });
 
-      // Prepare detailed results
-      const detailedResults = this.prepareDetailedResults(allQuestions, score, totalPoints);
+      // Delete any existing saved progress
+      if (this.state.savedProgressId) {
+        await this.deleteSavedProgress(this.state.savedProgressId);
+      }
 
       // Update state with results
       this.setState({
         showResults: true,
-        score,
-        totalQuestions: answeredQuestions,
-        totalPoints,
+        score: earnedPoints,
+        totalQuestions: allQuestions.length,
+        totalPoints: totalQuizPoints,
+        answeredQuestions: allQuestions.filter(q => q.selectedChoice !== undefined).length,
         submissionSuccess: savedSuccessfully,
         isSubmitting: false,
-        detailedResults
+        detailedResults,
+
+        // Clear any saved progress state
+        savedProgressId: undefined,
+        hasSavedProgress: false
       });
+
     } catch (error) {
       console.error('Error submitting quiz:', error);
 
@@ -597,22 +1250,46 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
         isSubmitting: false
       });
+
+      // Optional: Delete saved progress even if submission fails
+      if (this.state.savedProgressId) {
+        try {
+          await this.deleteSavedProgress(this.state.savedProgressId);
+        } catch (deleteError) {
+          console.error('Error deleting saved progress during failed submission:', deleteError);
+        }
+      }
     }
   };
 
 
+
   private handleRetakeQuiz = (): void => {
-    const resetQuestions = this.state.questions.map(q => ({
+    const resetQuestions = this.state.originalQuestions.map(q => ({
       ...q,
-      selectedChoice: undefined
+      selectedChoice: undefined,
+      userAnswer: undefined,
+      isCorrect: undefined
     }));
 
+    const finalQuestions = this.props.randomizeQuestions
+      ? this.shuffleArray(resetQuestions)
+      : resetQuestions;
+
+    const finalQuestionsWithRandomAnswers = this.props.randomizeAnswers
+      ? finalQuestions.map(question => ({
+        ...question,
+        choices: this.shuffleArray([...question.choices])
+      }))
+      : finalQuestions;
+
     this.setState({
-      questions: resetQuestions,
+      questions: finalQuestionsWithRandomAnswers,
       currentPage: 1,
       currentCategory: 'All',
       showResults: false,
       score: 0,
+      totalQuestions: 0,
       totalPoints: 0,
       answeredQuestions: 0,
       submissionSuccess: false,
@@ -620,11 +1297,16 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       showStartPage: true,
       quizStarted: false,
       overallTimerExpired: false,
-      expiredQuestions: []
+      expiredQuestions: [],
+      savedProgressId: undefined,
+      hasSavedProgress: false,
+      detailedResults: undefined
     });
 
-    this.randomizeQuestionsIfNeeded();
-  }
+    if (this.props.timeLimit) {
+      this.setRemainingTime(this.props.timeLimit);
+    }
+  };
 
   private handleAddQuestion = (): void => {
     this.setState({
@@ -643,27 +1325,22 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   private handleAddQuestionSubmit = (newQuestion: IQuizQuestion): void => {
     let updatedQuestions: IQuizQuestion[];
 
-    // Check if this is an update to an existing question (by ID)
     const existingQuestionIndex = this.props.questions.findIndex(q => q.id === newQuestion.id);
 
     if (existingQuestionIndex >= 0) {
-      // It's an edit - replace the existing question
       updatedQuestions = this.props.questions.map(q =>
         q.id === newQuestion.id ? newQuestion : q
       );
     } else {
-      // It's a new question - add it to the array
       updatedQuestions = [...this.props.questions, newQuestion];
     }
 
-    // Update questions through the prop callback
     this.props.updateQuestions(updatedQuestions);
 
-    // Update local state
     this.setState({
       showAddQuestionForm: false,
-      questions: updatedQuestions,  // Immediately update local state
-      originalQuestions: updatedQuestions,  // Update original questions too
+      questions: updatedQuestions,
+      originalQuestions: updatedQuestions,
       categories: this.updateCategories(updatedQuestions)
     });
   }
@@ -938,11 +1615,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
           )}
 
           {this.renderConfirmDialog()}
+          {this.renderSaveProgressDialog()}
+          {this.renderResumeDialog()}
         </Stack>
       );
     }
 
-    // Show start page if in display mode and not started
     if (displayMode === DisplayMode.Read && showStartPage) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -961,6 +1639,8 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
             timeLimit={this.props.timeLimit}
             passingScore={this.props.passingScore}
             description="This quiz will test your knowledge of the subject matter. Please read each question carefully before selecting your answer."
+            hasSavedProgress={this.state.hasSavedProgress}
+            onResumeQuiz={this.resumeQuiz}
           />
         </Stack>
       );
@@ -1130,12 +1810,20 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
               {isSubmitting ? (
                 <Spinner size={SpinnerSize.small} label="Submitting quiz..." />
               ) : (
-                <PrimaryButton
-                  iconProps={submitIcon}
-                  text="Submit Quiz"
-                  onClick={this.handleSubmitQuiz}
-                  disabled={!submitEnabled}
-                />
+                <>
+                  <PrimaryButton
+                    iconProps={submitIcon}
+                    text="Submit Quiz"
+                    onClick={this.handleSubmitQuiz}
+                    disabled={!submitEnabled}
+                  />
+                  <DefaultButton
+                    iconProps={saveIcon}
+                    text="Save & Continue Later"
+                    onClick={this.handleSaveProgressClick}
+                    style={{ marginLeft: '10px' }}
+                  />
+                </>
               )}
               {!submitEnabled && submitRequireAllAnswered && (
                 <Text style={{ marginTop: '8px', color: '#a4262c' }}>
@@ -1255,6 +1943,8 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         )}
 
         {this.renderConfirmDialog()}
+        {this.renderSaveProgressDialog()}
+        {this.renderResumeDialog()}
       </Stack>
     );
   }

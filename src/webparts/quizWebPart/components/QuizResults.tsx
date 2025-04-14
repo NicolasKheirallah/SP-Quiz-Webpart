@@ -94,7 +94,7 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
 
   const [activeView, setActiveView] = React.useState<string>('summary');
 
-  // Calculate percentage based on props directly if detailedResults isn't always present initially
+  // Calculate percentage based on score vs total points
   const summaryPercentage = totalQuestions > 0 ? Math.round((score / totalPoints) * 100) : 0;
 
   // Determine result message based on summary percentage
@@ -191,6 +191,13 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
           You answered {score} out of {totalPoints} points correctly.
         </Text>
 
+        {/* If detailed results are available, show additional stats */}
+        {detailedResults && (
+          <Text styles={scoreDetailsStyles}>
+            You answered {detailedResults.correctlyAnsweredQuestions} out of {detailedResults.totalQuestions} questions correctly ({detailedResults.percentageCorrect}%).
+          </Text>
+        )}
+
         <Stack horizontal tokens={{ childrenGap: 8 }} horizontalAlign="center" verticalAlign="center">
           <Icon iconName={getScoreIconName(summaryPercentage)} styles={{ root: { fontSize: '20px' } }} />
           <Text styles={resultMessageStyles}>{resultMessage}</Text>
@@ -229,7 +236,10 @@ const QuizResults: React.FC<IQuizResultsProps> = (props) => {
             <Text variant="large" style={{ fontWeight: FontWeights.semibold, color: '#0078d4' }}>
               {detailedResults.score} / {detailedResults.totalPoints} points ({detailedResults.percentage}%)
             </Text>
-            {/* Re-added call to getPerformanceMessage */}
+            {/* Show the correct vs total questions percentage */}
+            <Text variant="medium" style={{ marginTop: '5px' }}>
+              {detailedResults.correctlyAnsweredQuestions} / {detailedResults.totalQuestions} questions correct ({detailedResults.percentageCorrect}%)
+            </Text>
             <Text variant="medium">
               {getPerformanceMessage(detailedResults.percentage)}
             </Text>

@@ -21,6 +21,7 @@ import QuestionTimer from './QuestionTimer';
 
 // Import Prism for code highlighting
 import Prism from 'prismjs';
+import { MatchingQuestion } from './MatchingQuestion';
 
 // Stack tokens for spacing
 const stackTokens: IStackTokens = {
@@ -185,7 +186,27 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
             )}
           </div>
         );
-
+        case QuestionType.Matching:
+          return (
+            <div className={styles.matchingContainer}>
+              <MatchingQuestion
+                questionId={question.id}
+                matchingPairs={question.matchingPairs || []}
+                onMatchingPairsChange={(questionId, updatedPairs) => {
+                  // Convert matching pairs to the selected choices format
+                  // This helps maintain compatibility with the existing answer handling logic
+                  const selectedPairIds = updatedPairs
+                    .map(pair => `${pair.id}:${pair.userSelectedRightId || ''}`)
+                    .filter(mapping => mapping.endsWith(':') === false);
+                  
+                  onAnswerSelect(questionId, selectedPairIds);
+                }}
+                disabled={timeLimitExpired}
+              />
+            </div>
+          );
+        
+        
       default:
         return (
           <Text>Question type not supported.</Text>

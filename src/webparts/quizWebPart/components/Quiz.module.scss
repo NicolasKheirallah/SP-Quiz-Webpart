@@ -900,198 +900,202 @@
   background-color: white;
 }
 
-.addImageChoiceButton {
-  margin-top: 8px;
-  margin-left: 28px; // Aligned with the text field content
-  max-width: 180px;
-  
-  i {
-    margin-right: 6px;
-  }
-}
+/* Add these styles to your Quiz.module.scss file */
 
-// Choice Row with better layout
-.choiceRow {
+/* Add these missing class names to your Quiz.module.scss file */
+
+/* AddQuestionDialog.tsx missing class names */
+.choiceInputRow {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  margin-bottom: 16px;
-  padding: 12px;
-  background-color: $ms-color-neutralLighterAlt;
-  border: 1px solid $ms-color-neutralLight;
-  border-radius: 4px;
-  
-  &:hover {
-    background-color: $ms-color-neutralLighter;
-  }
-  
-  .choiceInputRow {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    
-    .choiceCheckbox {
-      min-width: 20px;
-    }
-    
-    .choiceTextField {
-      flex-grow: 1;
-    }
-    
-    .choiceDeleteButton {
-      margin-left: 8px;
-    }
-  }
-}
-
-// Choice Image Container
-.choiceImageContainer {
-  margin-top: 8px;
-  padding: 8px 0;
-  border-top: 1px dashed $ms-color-neutralLight;
+  align-items: center;
   width: 100%;
+  margin-bottom: 8px;
 }
 
-/* Add these new styles for Quiz Start Page */
+.choiceCheckbox {
+  margin-right: 8px;
+  min-width: 20px;
+}
+
+.choiceTextField {
+  flex-grow: 1;
+  margin-right: 8px;
+}
+
+.choiceDeleteButton {
+  margin-left: 8px;
+}
+
+.addImageChoiceButton {
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+/* QuizStartPage.tsx missing class names */
 .quizStartPage {
-  background-color: #fafafa;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 32px;
-  max-width: 900px;
+  padding: 24px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
 .quizStartTitle {
-  color: $ms-color-themePrimary;
-  margin-bottom: 24px;
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 16px;
   text-align: center;
-}
-
-.quizDescription {
-  text-align: center;
-  max-width: 700px;
-  line-height: 1.5;
-  color: $ms-color-neutralPrimary;
 }
 
 .quizStartImage {
-  margin-bottom: 20px;
-  border-radius: 4px;
-  border: 1px solid $ms-color-neutralLight;
-  padding: 8px;
-  background-color: white;
+  margin: 16px auto;
+  max-width: 100%;
+}
+
+.quizDescription {
+  margin: 16px 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .separator {
-  margin: 32px 0 24px 0;
+  margin: 24px 0 16px;
 }
 
 .quizStatsContainer {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 24px;
-  margin-bottom: 40px;
+  margin: 16px 0 24px;
 }
 
 .quizStatItem {
   padding: 16px;
   min-width: 120px;
   text-align: center;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
+  margin: 8px;
+  background-color: #f3f2f1;
+  border-radius: 4px;
 }
 
 .statIcon {
   font-size: 24px;
-  color: $ms-color-themePrimary;
+  color: #0078d4;
   margin-bottom: 8px;
 }
 
 .quizStartActions {
-  margin-top: 32px;
+  margin: 24px 0;
+  text-align: center;
 }
 
 .startButton {
-  min-width: 180px;
-  height: 44px;
-  font-size: 16px;
+  min-width: 120px;
 }
 
 .instructionsPanel {
-  padding: 16px 0;
+  padding: 12px 0;
 }
 
 .instructionItem {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 12px;
-  line-height: 1.5;
+  align-items: center;
+  margin: 8px 0;
 }
 
 .instructionIcon {
-  color: $ms-color-themePrimary;
-  margin-top: 3px;
+  margin-right: 8px;
+  color: #0078d4;
+  font-size: 12px;
 }
 
 .categoriesList {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
+  margin: 12px 0;
 }
 
 .categoryTag {
+  background-color: #f3f2f1;
   padding: 4px 12px;
-  background-color: $ms-color-neutralLighter;
+  margin: 4px;
   border-radius: 16px;
   font-size: 14px;
-  color: $ms-color-neutralPrimary;
 }
 
 .startButtonContainer {
-  margin-top: 32px;
+  margin-top: 24px;
   text-align: center;
 }
 
-/* Add these styles for the Quiz Timer */
+/* QuizTimer.tsx missing class names */
 .quizTimerContainer {
-  margin-bottom: 20px;
-  padding: 16px;
-  background-color: white;
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f9f9f8;
   border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid $ms-color-themePrimary;
-}
-
-.quizTimerIcon {
-  font-size: 20px;
-  margin-right: 8px;
-}
-
-.quizTimerText {
-  font-family: monospace;
-  font-size: 24px;
-  font-weight: 600;
 }
 
 .timerNotification {
   margin-bottom: 12px;
 }
 
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.7; }
-  100% { opacity: 1; }
+.quizTimerIcon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.quizTimerText {
+  font-size: 16px;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+/* Additional styles for matching questions feature */
+.matchingQuestion {
+  margin: 16px 0;
+}
+
+.matchingRow {
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f2f1;
+}
+
+.matchingLeftItem {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.matchingRightDropdown {
+  min-width: 200px;
+  flex-grow: 1;
+}
+
+.matchingContainer {
+  margin: 16px 0;
+}
+
+.matchingPairRow {
+  margin: 12px 0;
+  padding: 8px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.matchingItemField {
+  flex-grow: 1;
+  width: 100%;
+}
+
+.matchingDeleteButton {
+  align-self: flex-end;
+  margin-bottom: 8px;
+}
+
+.addPairButton {
+  margin-top: 16px;
+}
+.resumeButton {
+  background-color: #f0f4f9;
+  border-color: #0078d4;
+  color: #0078d4;
 }

@@ -25,6 +25,8 @@ export interface IQuizStartPageProps {
   passingScore?: number; // percentage
   quizImage?: string; // optional image URL
   description?: string;
+  hasSavedProgress?: boolean; // Add this prop to indicate saved progress
+  onResumeQuiz?: () => void; // Add this prop for resuming
 }
 
 // Stack tokens
@@ -52,7 +54,9 @@ const QuizStartPage: React.FC<IQuizStartPageProps> = (props) => {
     timeLimit,
     passingScore,
     quizImage,
-    description
+    description,
+    hasSavedProgress,
+    onResumeQuiz
   } = props;
 
   // Format time from seconds to minutes/hours
@@ -150,6 +154,15 @@ const QuizStartPage: React.FC<IQuizStartPageProps> = (props) => {
           className={styles.startButton}
         />
         
+        {hasSavedProgress && onResumeQuiz && (
+          <DefaultButton
+            text="Resume Saved Quiz"
+            iconProps={{ iconName: 'SkypeCircleCheck' }}
+            onClick={onResumeQuiz}
+            className={styles.resumeButton}
+          />
+        )}
+        
         <DefaultButton
           text="Quiz Instructions"
           iconProps={{ iconName: 'ReadingMode' }}
@@ -179,6 +192,7 @@ const QuizStartPage: React.FC<IQuizStartPageProps> = (props) => {
               "Once you submit your answer for a question, you cannot change it.",
               "Click 'Submit Quiz' when you have completed all questions.",
               "Your results will be displayed at the end of the quiz.",
+              "You can save your progress and resume later if needed."
             ]}
             onRenderCell={(item) => (
               <div className={styles.instructionItem}>
