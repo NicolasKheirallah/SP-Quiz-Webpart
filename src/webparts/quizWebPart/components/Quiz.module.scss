@@ -224,9 +224,13 @@
 
 // Dialog and form styles
 .dialogContent {
-  padding: 0 24px;
-  max-height: 80vh;
+  padding: 0 24px 20px 24px;
+  max-height: 85vh;
   overflow-y: auto;
+  
+  @media (max-width: 640px) {
+    padding: 0 16px 16px 16px;
+  }
 }
 
 .editQuestionsDialog {
@@ -242,6 +246,7 @@
   }
 }
 
+
 .formWrapper {
   background-color: #fff;
   border-radius: 4px;
@@ -251,23 +256,27 @@
 }
 
 .formSection {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
 }
 
 .formSectionTitle {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   color: #323130;
 }
 
 .formButtons {
   display: flex;
   justify-content: flex-end;
-  margin-top: 20px;
-  padding-top: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
   border-top: 1px solid #f0f0f0;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
   
   @media (max-width: 640px) {
@@ -279,6 +288,7 @@
   button {
     @media (max-width: 640px) {
       margin: 4px 0;
+      min-width: 100%;
     }
   }
 }
@@ -287,33 +297,38 @@
 .choiceRow {
   display: flex;
   flex-direction: column;
-  margin-bottom: 12px;
-  padding: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
   background-color: #f9f9f9;
   border: 1px solid #e6e6e6;
   border-radius: 4px;
-  gap: 8px;
+  gap: 12px;
   
   &:hover {
     background-color: $ms-color-neutralLighter;
   }
   
   @media (max-width: 640px) {
-    flex-wrap: wrap;
+    padding: 12px;
   }
 }
 
 .choicesContainer {
-  background-color: $ms-color-neutralLighterAlt;
-  padding: 16px;
+  background-color: #f8f8f8;
+  padding: 20px;
   border-radius: 4px;
-  margin-bottom: 16px;
+  margin: 16px 0;
   border: 1px solid $ms-color-neutralLight;
+  
+  @media (max-width: 640px) {
+    padding: 16px 12px;
+  }
 }
 
 .choiceGroup {
-  margin-top: 12px;
+  margin-top: 16px;
 }
+
 
 .checkboxGroup {
   display: flex;
@@ -1231,48 +1246,232 @@
   }
 }
 
+
 .addQuestionDialog {
   :global(.ms-Dialog-main) {
+    max-width: 900px;
+    min-width: 320px;
+    width: 90vw;
+    
     @media (min-width: 480px) {
       width: auto !important;
       max-width: 900px !important;
       min-width: 650px !important;
     }
+    
+    @media (max-width: 480px) {
+      min-width: 95vw;
+      max-width: 95vw;
+    }
+  }
+  
+  :global(.ms-Modal-scrollableContent) {
+    max-width: none !important;
   }
 }
 
+
 /* Enhance form layout for the wider dialog */
+/* These are additions/modifications to your existing Quiz.module.scss file */
+
+/* Dialog and form styles - Update these sections */
+.dialogContent {
+  padding: 0 24px 20px 24px;
+  max-height: 85vh;
+  overflow-y: auto;
+  
+  @media (max-width: 640px) {
+    padding: 0 16px 16px 16px;
+  }
+}
+
+.editQuestionsDialog {
+  :global(.ms-Dialog-main) {
+    max-width: 1000px;
+    min-width: 320px;
+    width: 90vw;
+    
+    @media (max-width: 1024px) {
+      min-width: 90vw;
+      max-width: 90vw;
+    }
+  }
+}
+
+.addQuestionDialog {
+  :global(.ms-Dialog-main) {
+    max-width: 900px;
+    min-width: 320px;
+    width: 90vw;
+    
+    @media (min-width: 480px) {
+      width: auto !important;
+      max-width: 900px !important;
+      min-width: 650px !important;
+    }
+    
+    @media (max-width: 480px) {
+      min-width: 95vw;
+      max-width: 95vw;
+    }
+  }
+  
+  :global(.ms-Modal-scrollableContent) {
+    max-width: none !important;
+  }
+}
+
 .formWrapper {
   background-color: #fff;
   border-radius: 4px;
-  padding: 0 0 8px 0;
+  padding: 16px;
   overflow-y: auto;
-  max-height: 70vh;
-  width: 100%;
-}
-
-/* Make rich text editor more prominent in the wider space */
-.richTextEditor {
-  margin-bottom: 16px;
-  position: relative;
-  z-index: 1;
+  max-height: 70vh; /* Allow scrolling for long forms */
   
-  :global(.pnp-richtext-wrapper) {
-    border: 1px solid #c8c6c4;
-    border-radius: 2px;
-    min-height: 150px;
-    max-height: 300px;
-    overflow-y: auto;
+  /* Improve scrollbar appearance */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #c8c8c8;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f4f4f4;
   }
 }
 
+
 /* Enhanced choice rows for the wider layout */
-.choicesContainer {
-  width: 100%;
-  padding: 20px;
-  margin-bottom: 20px;
+/* These are additions/modifications to your existing Quiz.module.scss file */
+
+/* Dialog and form styles - Update these sections */
+.dialogContent {
+  padding: 0 24px 20px 24px;
+  max-height: 85vh;
+  overflow-y: auto;
+  
+  @media (max-width: 640px) {
+    padding: 0 16px 16px 16px;
+  }
 }
 
+.editQuestionsDialog {
+  :global(.ms-Dialog-main) {
+    max-width: 1000px;
+    min-width: 320px;
+    width: 90vw;
+    
+    @media (max-width: 1024px) {
+      min-width: 90vw;
+      max-width: 90vw;
+    }
+  }
+}
+
+.addQuestionDialog {
+  :global(.ms-Dialog-main) {
+    max-width: 900px;
+    min-width: 320px;
+    width: 90vw;
+    
+    @media (min-width: 480px) {
+      width: auto !important;
+      max-width: 900px !important;
+      min-width: 650px !important;
+    }
+    
+    @media (max-width: 480px) {
+      min-width: 95vw;
+      max-width: 95vw;
+    }
+  }
+  
+  :global(.ms-Modal-scrollableContent) {
+    max-width: none !important;
+  }
+}
+
+.formWrapper {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 16px;
+  overflow: visible;
+}
+
+.sectionContainer {
+  margin-bottom: 20px;
+  padding: 20px;
+  background-color: #fafafa;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  
+  .sectionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+  }
+  
+  .sectionContent {
+    &.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: #666;
+      font-style: italic;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      border: 1px dashed #ddd;
+    }
+  }
+  
+  .imageItem, .codeSnippetItem {
+    border: 1px solid #eaeaea;
+    border-radius: 4px;
+    padding: 16px;
+    background-color: white;
+    margin-bottom: 16px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+.formButtons {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
+  gap: 12px;
+  flex-wrap: wrap;
+  
+  @media (max-width: 640px) {
+    justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  button {
+    @media (max-width: 640px) {
+      margin: 4px 0;
+      min-width: 100%;
+    }
+  }
+}
+
+/* Choice inputs with improved alignment */
 .choiceRow {
   display: flex;
   flex-direction: column;
@@ -1282,25 +1481,215 @@
   border: 1px solid #e6e6e6;
   border-radius: 4px;
   gap: 12px;
-}
-
-/* Improved spacing for matching pairs */
-.matchingPairRow {
-  margin: 16px 0;
-  padding: 16px;
   
-  & > div {
-    gap: 16px;
+  &:hover {
+    background-color: $ms-color-neutralLighter;
+  }
+  
+  @media (max-width: 640px) {
+    padding: 12px;
   }
 }
 
-/* Better footer button layout */
-.formButtons {
-  margin-top: 24px;
-  padding-top: 20px;
+.choicesContainer {
+  background-color: #f8f8f8;
+  padding: 20px;
+  border-radius: 4px;
+  margin: 16px 0;
+  border: 1px solid $ms-color-neutralLight;
+  
+  @media (max-width: 640px) {
+    padding: 16px 12px;
+  }
+}
+
+.choiceGroup {
+  margin-top: 16px;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.choiceInputRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
   gap: 12px;
   
-  button {
-    min-width: 100px;
+  @media (max-width: 480px) {
+    flex-wrap: wrap;
+  }
+}
+
+.choiceCheckbox {
+  margin-right: 12px;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.choiceTextField {
+  flex-grow: 1;
+  margin-right: 12px;
+}
+
+.choiceDeleteButton {
+  margin-left: 4px;
+}
+
+.choiceImageContainer {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  border: 1px dashed #ccc;
+}
+
+/* Make rich text editor more prominent */
+.richTextEditor {
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1; // Prevent z-index conflicts with dropdown menus
+  
+  :global(.pnp-richtext-wrapper) {
+    border: 1px solid #c8c6c4;
+    border-radius: 2px;
+    height: 200px;
+    overflow: visible;
+  }
+  
+  :global(.ql-toolbar) {
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-bottom: 1px solid #edebe9;
+    background: #f3f2f1;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  
+  :global(.ql-container) {
+    min-height: 100px;
+    height: auto;
+  }
+  
+  :global(.pnp-richtext-readonly) {
+    min-height: auto;
+  }
+}
+
+/* Enhanced Matching question section */
+.matchingContainer {
+  background-color: #f8f8f8;
+  padding: 20px;
+  border-radius: 4px;
+  margin: 16px 0;
+  border: 1px solid $ms-color-neutralLight;
+  
+  @media (max-width: 640px) {
+    padding: 16px 12px;
+  }
+}
+
+.matchingPairRow {
+  margin: 16px 0;
+  padding: 16px;
+  background-color: #f9f9f9;
+  border: 1px solid #e6e6e6;
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: $ms-color-neutralLighter;
+  }
+  
+  & > div {
+    @media (max-width: 640px) {
+      flex-direction: column;
+      gap: 12px;
+    }
+  }
+}
+
+.matchingItemField {
+  flex-grow: 1;
+  width: 100%;
+}
+
+.matchingDeleteButton {
+  align-self: center;
+  margin-top: 8px;
+}
+
+.addPairButton {
+  margin-top: 16px;
+}
+
+/* Enhanced image and code snippet styles */
+.imageUploadContainer {
+  margin-bottom: 16px;
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 4px;
+  padding: 16px;
+  background-color: $ms-color-neutralLighterAlt;
+}
+
+.codeSnippetContainer {
+  margin-bottom: 16px;
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 4px;
+  padding: 16px;
+  background-color: $ms-color-neutralLighterAlt;
+}
+
+/* Apply wider dialog styles globally */
+:global(.wideFormDialog) {
+  :global(.ms-Dialog-main) {
+    @media (min-width: 480px) {
+      width: auto !important;
+      max-width: 900px !important;
+      min-width: 650px !important;
+    }
+    
+    @media (max-width: 480px) {
+      min-width: 95vw;
+      max-width: 95vw;
+    }
+  }
+
+  :global(.ms-Modal-scrollableContent) {
+    max-width: none !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+  
+  /* Single scrollbar for entire dialog */
+  :global(.ms-Dialog-inner) {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  :global(.ms-Dialog-content) {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  
+  /* Style the dialog's single scrollbar */
+  :global(.ms-Modal-scrollableContent::-webkit-scrollbar) {
+    width: 8px;
+  }
+  
+  :global(.ms-Modal-scrollableContent::-webkit-scrollbar-thumb) {
+    background: #c8c8c8;
+    border-radius: 4px;
+  }
+  
+  :global(.ms-Modal-scrollableContent::-webkit-scrollbar-track) {
+    background: #f4f4f4;
   }
 }

@@ -37,6 +37,8 @@ import {
   ITextStyles,
   SpinButton,
   ISpinButtonStyles,
+  mergeStyleSets,
+  IProcessedStyleSet
 } from '@fluentui/react';
 import { RichText } from "@pnp/spfx-controls-react/lib/RichText";
 import styles from './Quiz.module.scss';
@@ -53,47 +55,126 @@ const cancelIcon: IIconProps = { iconName: 'Cancel' };
 const imageIcon: IIconProps = { iconName: 'Picture' };
 const codeIcon: IIconProps = { iconName: 'Code' };
 
-// Stack token for spacing
-const stackTokens: IStackTokens = {
-  childrenGap: 15
-};
 
 // Stack tokens for choice row
 const choiceRowStackTokens: IStackTokens = {
-  childrenGap: 8
+  childrenGap: 12
 };
 
 // Custom styles for the form section title
 const formSectionTitleStyles: ITextStyles = {
   root: {
-    fontSize: '14px',
-    fontWeight: 600 as const,
-    marginBottom: '8px',
-    color: '#323130'
+    fontSize: '16px',
+    fontWeight: 600,
+    marginBottom: '12px',
+    color: '#323130',
+    marginTop: '8px'
   }
 };
 
 // Spin button styles
 const spinButtonStyles: Partial<ISpinButtonStyles> = {
   spinButtonWrapper: {
-    width: 100
+    width: 120
   }
 };
 
-// This is the key fix for dialog width issues
-const modalStyles = {
-  main: {
+// Custom styles for the dialog components
+const customStyles: IProcessedStyleSet<{
+  dialogRoot: string;
+  dialogContent: string;
+  formContainer: string;
+  sectionContainer: string;
+  fieldGroup: string;
+  choicesContainer: string;
+  matchingContainer: string;
+  horizontalGroup: string;
+  footer: string;
+}> = mergeStyleSets({
+  dialogRoot: {
     selectors: {
       '@media (min-width: 480px)': {
-        width: 'auto !important',
-        maxWidth: '900px !important',
-        minWidth: '700px !important'
+        minWidth: '800px !important',
+        maxWidth: '90vw !important'
       }
     }
   },
-  scrollableContent: {
-    maxWidth: 'none !important'
+  dialogContent: {
+    padding: '0 24px 20px 24px',
+    selectors: {
+      '@media (max-width: 480px)': {
+        padding: '0 16px 16px 16px'
+      }
+    }
+  },
+  formContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    padding: '4px 4px 16px 4px',
+    overflowY: 'visible'
+  },
+  sectionContainer: {
+    marginBottom: '20px',
+    padding: '16px',
+    backgroundColor: '#fafafa',
+    border: '1px solid #edebe9',
+    borderRadius: '4px'
+  },
+  fieldGroup: {
+    marginBottom: '16px'
+  },
+  choicesContainer: {
+    padding: '20px',
+    backgroundColor: '#f8f8f8',
+    borderRadius: '4px',
+    border: '1px solid #edebe9',
+    marginTop: '16px',
+    marginBottom: '16px'
+  },
+  matchingContainer: {
+    padding: '20px',
+    backgroundColor: '#f8f8f8',
+    borderRadius: '4px',
+    border: '1px solid #edebe9',
+    marginTop: '16px',
+    marginBottom: '16px'
+  },
+  horizontalGroup: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '16px',
+    selectors: {
+      '@media (max-width: 640px)': {
+        flexDirection: 'column'
+      }
+    }
+  },
+  footer: {
+    marginTop: '24px',
+    padding: '16px 0',
+    borderTop: '1px solid #edebe9'
   }
+});
+
+  // Custom modal props with fixed width issue and single scrollbar
+const customModalProps: IModalProps = {
+  isBlocking: true,
+  styles: {
+    main: {
+      selectors: {
+        '@media (min-width: 480px)': {
+          minWidth: '800px !important',
+          maxWidth: '90vw !important',
+          width: 'auto !important'
+        }
+      }
+    },
+    scrollableContent: {
+      maxHeight: '90vh'
+    }
+  },
+  className: 'wideFormDialog'
 };
 
 const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
@@ -453,11 +534,11 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     switch (questionType) {
       case QuestionType.MultipleChoice:
         return (
-          <div className={styles.choicesContainer}>
+          <div className={customStyles.choicesContainer}>
             <Text styles={formSectionTitleStyles}>Choices (select the correct answer)</Text>
             {choices.map((choice, idx) => (
               <div key={choice.id} className={styles.choiceRow}>
-                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="start" style={{ width: '100%' }}>
+                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="center" style={{ width: '100%' }}>
                   <Stack.Item>
                     <Checkbox
                       checked={choice.isCorrect}
@@ -474,6 +555,24 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                       className={styles.choiceTextField}
                     />
                   </Stack.Item>
+                  <Stack.Item align="center">
+                    <IconButton
+                      iconProps={{ iconName: 'Picture' }}
+                      title="Add Image to Choice"
+                      ariaLabel="Add Image to Choice"
+                      onClick={() => {
+                        // Create an empty image to start with
+                        const newImage: IQuizImage = {
+                          id: uuidv4(),
+                          url: '',
+                          fileName: '',
+                          altText: `Image for ${choice.text}`
+                        };
+                        handleChoiceImageUpload(choice.id, newImage);
+                      }}
+                      styles={{ root: { margin: '0 8px' } }}
+                    />
+                  </Stack.Item>
                   <Stack.Item>
                     <IconButton
                       iconProps={deleteIcon}
@@ -486,7 +585,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                   </Stack.Item>
                 </Stack>
 
-                {choice.image ? (
+                {choice.image && (
                   <div className={styles.choiceImageContainer}>
                     <ImageUpload
                       currentImage={choice.image}
@@ -496,22 +595,6 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                       context={context}
                     />
                   </div>
-                ) : (
-                  <DefaultButton
-                    iconProps={imageIcon}
-                    text="Add Image to Choice"
-                    onClick={() => {
-                      // Create an empty image to start with
-                      const newImage: IQuizImage = {
-                        id: uuidv4(),
-                        url: '',
-                        fileName: '',
-                        altText: `Image for ${choice.text}`
-                      };
-                      handleChoiceImageUpload(choice.id, newImage);
-                    }}
-                    className={styles.addImageChoiceButton}
-                  />
                 )}
               </div>
             ))}
@@ -530,7 +613,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
 
       case QuestionType.TrueFalse:
         return (
-          <div className={styles.choicesContainer}>
+          <div className={customStyles.choicesContainer}>
             <Text styles={formSectionTitleStyles}>Select the correct answer:</Text>
             <ChoiceGroup
               options={tfOptions}
@@ -552,11 +635,11 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
 
       case QuestionType.MultiSelect: {
         return (
-          <div className={styles.choicesContainer}>
+          <div className={customStyles.choicesContainer}>
             <Text styles={formSectionTitleStyles}>Choices (select all correct answers)</Text>
             {choices.map((choice, idx) => (
               <div key={choice.id} className={styles.choiceRow}>
-                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="start" style={{ width: '100%' }}>
+                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="center" style={{ width: '100%' }}>
                   <Stack.Item>
                     <Checkbox
                       checked={choice.isCorrect}
@@ -573,6 +656,24 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                       className={styles.choiceTextField}
                     />
                   </Stack.Item>
+                  <Stack.Item align="center">
+                    <IconButton
+                      iconProps={{ iconName: 'Picture' }}
+                      title="Add Image to Choice"
+                      ariaLabel="Add Image to Choice"
+                      onClick={() => {
+                        // Create an empty image to start with
+                        const newImage: IQuizImage = {
+                          id: uuidv4(),
+                          url: '',
+                          fileName: '',
+                          altText: `Image for ${choice.text}`
+                        };
+                        handleChoiceImageUpload(choice.id, newImage);
+                      }}
+                      styles={{ root: { margin: '0 8px' } }}
+                    />
+                  </Stack.Item>
                   <Stack.Item>
                     <IconButton
                       iconProps={deleteIcon}
@@ -585,7 +686,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                   </Stack.Item>
                 </Stack>
 
-                {choice.image ? (
+                {choice.image && (
                   <div className={styles.choiceImageContainer}>
                     <ImageUpload
                       currentImage={choice.image}
@@ -595,22 +696,6 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                       context={context}
                     />
                   </div>
-                ) : (
-                  <DefaultButton
-                    iconProps={imageIcon}
-                    text="Add Image to Choice"
-                    onClick={() => {
-                      // Create an empty image to start with
-                      const newImage: IQuizImage = {
-                        id: uuidv4(),
-                        url: '',
-                        fileName: '',
-                        altText: `Image for ${choice.text}`
-                      };
-                      handleChoiceImageUpload(choice.id, newImage);
-                    }}
-                    className={styles.addImageChoiceButton}
-                  />
                 )}
               </div>
             ))}
@@ -630,7 +715,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
 
       case QuestionType.ShortAnswer:
         return (
-          <div className={styles.choicesContainer}>
+          <div className={customStyles.choicesContainer}>
             <Text styles={formSectionTitleStyles}>Correct Answer</Text>
             <TextField
               required
@@ -645,18 +730,18 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
               onText="On"
               offText="Off"
               inlineLabel
-              styles={{ root: { marginTop: 12 } }}
+              styles={{ root: { marginTop: 16 } }}
             />
           </div>
         );
       case QuestionType.Matching: {
         return (
-          <div className={styles.matchingContainer}>
+          <div className={customStyles.matchingContainer}>
             <Text styles={formSectionTitleStyles}>Create Matching Pairs</Text>
 
             {matchingPairs.map((pair, idx) => (
               <div key={pair.id} className={styles.matchingPairRow}>
-                <Stack horizontal tokens={{ childrenGap: 12 }}>
+                <Stack horizontal tokens={{ childrenGap: 16 }}>
                   <Stack.Item grow>
                     <TextField
                       label={`Left Item ${idx + 1}`}
@@ -712,6 +797,7 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 setMatchingPairs([...matchingPairs, newPair]);
               }}
               className={styles.addPairButton}
+              styles={{ root: { marginTop: '16px' } }}
             />
           </div>
         );
@@ -722,17 +808,11 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     }
   };
 
-  // Get the dialog content and modal props
+  // Get the dialog content props
   const dialogContentProps: IDialogContentProps = {
     type: DialogType.largeHeader,
-    title: initialQuestion ? 'Edit Question' : 'Add New Question'
-  };
-
-  // Create modal props with styles to override width constraints
-  const modalProps: IModalProps = {
-    isBlocking: true,
-    styles: modalStyles,
-    className: 'wideFormDialog'
+    title: initialQuestion ? 'Edit Question' : 'Add New Question',
+    className: customStyles.dialogContent
   };
 
   return (
@@ -740,15 +820,15 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       hidden={false}
       onDismiss={onCancel}
       dialogContentProps={dialogContentProps}
-      modalProps={modalProps}
-      className={styles.addQuestionDialog}
+      modalProps={customModalProps}
+      className={customStyles.dialogRoot}
     >
       {validationError && (
         <MessageBar
           messageBarType={MessageBarType.error}
           isMultiline={false}
           dismissButtonAriaLabel="Close"
-          styles={{ root: { marginBottom: 15 } }}
+          styles={{ root: { marginBottom: 16, marginTop: 8 } }}
         >
           {validationError}
         </MessageBar>
@@ -770,17 +850,16 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       </Pivot>
 
       {activeTab === 'question' && (
-        <Stack tokens={stackTokens} className={styles.formWrapper}>
+        <div className={customStyles.formContainer}>
           <TextField
             label="Question Title"
             required
             value={title}
             onChange={(_e, value) => setTitle(value || '')}
             placeholder="Enter your question title here"
-            styles={{ fieldGroup: { width: '100%' } }}
           />
 
-          <div className={styles.formSection}>
+          <div className={customStyles.sectionContainer}>
             <Text styles={formSectionTitleStyles}>Question Description (Optional)</Text>
             <div className={styles.richTextEditor}>
               <RichText
@@ -789,14 +868,16 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 isEditMode={true}
                 placeholder="Add detailed question text, instructions, or context here..."
                 style={{
-                  minHeight: '120px'
+                  minHeight: '120px',
+                  height: '200px',
+                  overflowY: 'visible'
                 }}
               />
             </div>
           </div>
 
-          <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-            <Stack.Item grow={1} style={{ minWidth: '200px', maxWidth: '50%' }}>
+          <div className={customStyles.horizontalGroup}>
+            <div style={{ flex: '1', minWidth: '250px' }}>
               <Dropdown
                 label="Question Type"
                 required
@@ -832,9 +913,9 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 }}
                 options={questionTypeOptions}
               />
-            </Stack.Item>
+            </div>
 
-            <Stack.Item grow={1} style={{ minWidth: '200px', maxWidth: '50%' }}>
+            <div style={{ flex: '1', minWidth: '250px' }}>
               <Dropdown
                 label="Category"
                 required
@@ -843,8 +924,8 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 options={categoryOptions}
                 placeholder="Select or add category"
               />
-            </Stack.Item>
-          </Stack>
+            </div>
+          </div>
 
           {category === 'new' && (
             <TextField
@@ -853,18 +934,17 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
               value={newCategory}
               onChange={(_e, value) => setNewCategory(value || '')}
               placeholder="Enter new category"
-              styles={{ fieldGroup: { width: '100%' } }}
             />
           )}
 
           {renderQuestionTypeInputs()}
-        </Stack>
+        </div>
       )}
 
       {activeTab === 'additional' && (
-        <Stack tokens={stackTokens} className={styles.formWrapper}>
-          <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
-            <Stack.Item grow>
+        <div className={customStyles.formContainer}>
+          <div className={customStyles.horizontalGroup}>
+            <div style={{ flex: '1', minWidth: '250px' }}>
               <Toggle
                 label="Enable Time Limit"
                 checked={timeLimitEnabled}
@@ -880,9 +960,9 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 onText="On"
                 offText="Off"
               />
-            </Stack.Item>
+            </div>
 
-            <Stack.Item>
+            <div style={{ flex: '0 0 auto', minWidth: '150px' }}>
               <TextField
                 label="Points"
                 type="number"
@@ -894,11 +974,10 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 }}
                 min="1"
                 placeholder="1"
-                styles={{ fieldGroup: { width: '100px' } }}
               />
-            </Stack.Item>
+            </div>
 
-            <Stack.Item>
+            <div style={{ flex: '0 0 auto', minWidth: '200px' }}>
               {timeLimitEnabled ? (
                 <SpinButton
                   label="Time Limit (seconds)"
@@ -913,22 +992,32 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                   styles={spinButtonStyles}
                 />
               ) : null}
-            </Stack.Item>
-          </Stack>
+            </div>
+          </div>
 
-          <TextField
-            label="Explanation (Optional)"
-            multiline
-            rows={4}
-            value={explanation}
-            onChange={(_e, value) => setExplanation(value || '')}
-            placeholder="Enter an explanation for the correct answer"
-            styles={{ fieldGroup: { width: '100%' } }}
-          />
+          <div className={customStyles.sectionContainer}>
+            <Text styles={formSectionTitleStyles}>Explanation (Optional)</Text>
+            <TextField
+              multiline
+              rows={4}
+              value={explanation}
+              onChange={(_e, value) => setExplanation(value || '')}
+              placeholder="Enter an explanation for the correct answer"
+            />
+          </div>
 
           {/* Code Snippet Section */}
-          <Stack tokens={stackTokens}>
-            <Text styles={formSectionTitleStyles}>Code Snippets</Text>
+          <div className={customStyles.sectionContainer}>
+            <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
+              <Text styles={formSectionTitleStyles}>Code Snippets</Text>
+              {!addingCodeSnippet && (
+                <DefaultButton
+                  iconProps={codeIcon}
+                  text="Add Code Snippet"
+                  onClick={() => setAddingCodeSnippet(true)}
+                />
+              )}
+            </Stack>
 
             {codeSnippets.length > 0 ? (
               <Stack tokens={{ childrenGap: 16 }}>
@@ -942,28 +1031,32 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 ))}
               </Stack>
             ) : (
-              <Text>No code snippets added yet.</Text>
+              <Text style={{ color: '#666', fontStyle: 'italic' }}>No code snippets added yet.</Text>
             )}
 
-            {addingCodeSnippet ? (
-              <CodeSnippet
-                onChange={handleCodeSnippetChange}
-                onRemove={() => setAddingCodeSnippet(false)}
-                isEditing={true}
-              />
-            ) : (
-              <DefaultButton
-                iconProps={codeIcon}
-                text="Add Code Snippet"
-                onClick={() => setAddingCodeSnippet(true)}
-                styles={{ root: { marginTop: 8 } }}
-              />
+            {addingCodeSnippet && (
+              <div style={{ marginTop: '16px' }}>
+                <CodeSnippet
+                  onChange={handleCodeSnippetChange}
+                  onRemove={() => setAddingCodeSnippet(false)}
+                  isEditing={true}
+                />
+              </div>
             )}
-          </Stack>
+          </div>
 
           {/* Images Section */}
-          <Stack tokens={stackTokens}>
-            <Text styles={formSectionTitleStyles}>Images</Text>
+          <div className={customStyles.sectionContainer}>
+            <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
+              <Text styles={formSectionTitleStyles}>Images</Text>
+              {!addingImage && (
+                <DefaultButton
+                  iconProps={imageIcon}
+                  text="Add Image"
+                  onClick={() => setAddingImage(true)}
+                />
+              )}
+            </Stack>
 
             {images.length > 0 ? (
               <Stack tokens={{ childrenGap: 16 }}>
@@ -979,33 +1072,28 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
                 ))}
               </Stack>
             ) : (
-              <Text>No images added yet.</Text>
+              <Text style={{ color: '#666', fontStyle: 'italic' }}>No images added yet.</Text>
             )}
 
-            {addingImage ? (
-              <ImageUpload
-                onImageUpload={handleImageUpload}
-                onImageRemove={() => setAddingImage(false)}
-                label="Upload Image"
-                context={context}
-              />
-            ) : (
-              <DefaultButton
-                iconProps={imageIcon}
-                text="Add Image"
-                onClick={() => setAddingImage(true)}
-                styles={{ root: { marginTop: 8 } }}
-              />
+            {addingImage && (
+              <div style={{ marginTop: '16px' }}>
+                <ImageUpload
+                  onImageUpload={handleImageUpload}
+                  onImageRemove={() => setAddingImage(false)}
+                  label="Upload Image"
+                  context={context}
+                />
+              </div>
             )}
-          </Stack>
-        </Stack>
+          </div>
+        </div>
       )}
 
-      <DialogFooter className={styles.formButtons}>
+      <DialogFooter className={customStyles.footer}>
         <Stack 
           horizontal 
           wrap 
-          tokens={{ childrenGap: 8 }} 
+          tokens={{ childrenGap: 12 }} 
           horizontalAlign="end"
           verticalAlign="center"
           styles={{ root: { width: '100%' } }}
@@ -1038,6 +1126,5 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       </DialogFooter>
     </Dialog>
   );
-};
-
+}
 export default AddQuestionDialog;
