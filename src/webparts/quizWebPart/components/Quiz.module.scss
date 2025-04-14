@@ -243,12 +243,11 @@
 }
 
 .formWrapper {
-  background-color: $ms-color-white;
+  background-color: #fff;
   border-radius: 4px;
   padding: 0 0 8px 0;
   overflow-y: auto;
-  max-height: 60vh; /* Allow scrolling for long forms */
-
+  max-height: 70vh; /* Allow scrolling for long forms */
 }
 
 .formSection {
@@ -265,23 +264,33 @@
 .formButtons {
   display: flex;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
   gap: 8px;
   flex-wrap: wrap;
   
   @media (max-width: 640px) {
     justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  button {
+    @media (max-width: 640px) {
+      margin: 4px 0;
+    }
   }
 }
 
 // Choice inputs
 .choiceRow {
   display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  padding: 8px;
-  background-color: $ms-color-neutralLighterAlt;
-  border: 1px solid $ms-color-neutralLight;
+  flex-direction: column;
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #f9f9f9;
+  border: 1px solid #e6e6e6;
   border-radius: 4px;
   gap: 8px;
   
@@ -311,6 +320,32 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+
+.choiceInputRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.choiceCheckbox {
+  margin-right: 8px;
+  min-width: 24px;
+}
+
+.choiceTextField {
+  flex-grow: 1;
+  margin-right: 8px;
+}
+
+.choiceDeleteButton {
+  margin-left: 8px;
+}
+
+.addImageChoiceButton {
+  margin-top: 8px;
+  align-self: flex-start;
 }
 
 .shortAnswerContainer {
@@ -382,9 +417,11 @@
 // Results container
 .resultsContainer {
   text-align: center;
-  max-width: 600px;
+  max-width: 1200px; // Increased from 600px for better layout
+  max-width: 800px;
   margin: 0 auto;
   padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .resultsTitle {
@@ -412,6 +449,11 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
 }
 
 .scoreValue {
@@ -499,8 +541,7 @@
   }
 }
 
-// New styles for rich text, progress tracking, and detailed results
-
+// Rich Text Styles
 .richTextEditor {
   margin-bottom: 16px;
   position: relative;
@@ -564,6 +605,7 @@
   }
 }
 
+// Progress Tracking
 .progressContainer {
   padding: 10px 0 15px 0;
   margin-bottom: 15px;
@@ -590,6 +632,7 @@
   font-weight: 600;
 }
 
+// Timer Components
 .timerContainer {
   display: flex;
   align-items: center;
@@ -606,8 +649,86 @@
 
 .timerText {
   font-weight: 600;
+  font-family: monospace;
+  font-size: 16px;
 }
 
+.questionTimer {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 4px;
+  background-color: $ms-color-neutralLighterAlt;
+}
+
+.timerWarning {
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.questionTimerWrapper {
+  margin: 0 0 16px 0;
+}
+
+.timeExpiredMessage {
+  margin-bottom: 16px;
+}
+
+.quizTimerContainer {
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f9f9f8;
+  border-radius: 4px;
+}
+
+.timerNotification {
+  margin-bottom: 12px;
+}
+
+.quizTimerIcon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.quizTimerText {
+  font-size: 16px;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+// Question Media Elements
+.questionImages {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.questionImage {
+  border: 1px solid $ms-color-neutralLight;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+  text-align: center;
+  
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+.imageCaption {
+  font-style: italic;
+  margin-top: 8px;
+  color: $ms-color-neutralSecondary;
+  font-size: 14px;
+}
+
+.questionCodeSnippets {
+  margin: 16px 0;
+}
+
+// Detailed results styles
 .detailedResultsContainer {
   margin-top: 20px;
   background-color: white;
@@ -631,23 +752,26 @@
 }
 
 .answerBox {
-  padding: 10px 12px;
-  margin-top: 4px;
-  background-color: #f3f2f1;
+  padding: 12px;
+  background-color: white;
+  border: 1px solid #eaeaea;
   border-radius: 4px;
+  min-height: 40px;
+  margin-top: 8px;
 }
 
 .correctAnswerBox {
-  padding: 10px 12px;
-  margin-top: 4px;
-  background-color: #dff6dd;
+  padding: 12px;
+  background-color: rgba(16, 124, 16, 0.05);
   border-radius: 4px;
+  border-color: #107c10;
   border-left: 3px solid #107c10;
+  margin-top: 8px;
 }
 
 .questionDetails {
   margin-top: 12px;
-  padding: 12px;
+  padding: 16px;
   background-color: #f9f9f9;
   border-radius: 4px;
 }
@@ -659,7 +783,11 @@
 }
 
 .explanationBox {
-  margin-top: 12px;
+  margin-top: 16px;
+  background-color: rgba(0, 120, 212, 0.1);
+  border: 1px solid rgba(0, 120, 212, 0.3);
+  border-radius: 4px;
+  padding: 12px;
 }
 
 .correctIcon {
@@ -672,28 +800,52 @@
   margin-right: 6px;
 }
 
+// Question accordion component
 .questionAccordion {
+  margin-bottom: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: all 0.2s ease;
   margin-top: 16px;
-  
+
+  &:hover {
+    border-color: #c8c8c8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+
   :global(.ms-Accordion-button) {
     background-color: #f9f9f9;
     padding: 12px;
+    font-weight: 500;
   }
-  
+
   :global(.ms-Accordion) {
-    border: 1px solid #edebe9;
     border-radius: 4px;
     margin-bottom: 16px;
     overflow: hidden;
   }
-  
+
   :global(.ms-Accordion-panel) {
     padding: 16px;
   }
 }
-/* Add these styles to your Quiz.module.scss file */
 
-/* Code Snippet Styles */
+.correctQuestion {
+  :global(.ms-Accordion-button) {
+    background-color: rgba(16, 124, 16, 0.1);
+    border-left: 4px solid #107c10;
+  }
+}
+
+.incorrectQuestion {
+  :global(.ms-Accordion-button) {
+    background-color: rgba(209, 52, 56, 0.1);
+    border-left: 4px solid #d13438;
+  }
+}
+
+// Code Snippet Styles
 .codeSnippetContainer {
   margin-bottom: 16px;
   border: 1px solid $ms-color-neutralLight;
@@ -721,7 +873,6 @@
     line-height: 1.5;
   }
 }
-
 
 // Image related classes
 .imageUploadContainer {
@@ -786,97 +937,15 @@
   background-color: #fcfcfc;
 }
 
-// Code snippet related classes
-.codeSnippetContainer {
-  margin-bottom: 16px;
-  border: 1px solid $ms-color-neutralLight;
-  border-radius: 4px;
-  padding: 16px;
-  background-color: $ms-color-neutralLighterAlt;
-}
-
-.codeDisplay {
+.choiceImage {
   margin-top: 8px;
-  border: 1px solid $ms-color-neutralTertiaryAlt;
+  margin-left: 24px; /* Indent to align with checkbox */
+  margin-bottom: 8px;
+  max-width: 300px;
+  border: 1px solid $ms-color-neutralLight;
+  padding: 4px;
   border-radius: 2px;
-  overflow: auto;
-  max-height: 300px;
-  background-color: #1e1e1e; /* Dark background for code */
-  
-  pre {
-    padding: 12px;
-    margin: 0;
-  }
-  
-  code {
-    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-}
-
-// Timer related classes
-.questionTimer {
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid $ms-color-neutralLight;
-  border-radius: 4px;
-  background-color: $ms-color-neutralLighterAlt;
-}
-
-.timerIcon {
-  font-size: 18px;
-  margin-right: 8px;
-}
-
-.timerText {
-  font-family: monospace;
-  font-size: 16px;
-}
-
-.timerWarning {
-  margin-top: 4px;
-  font-weight: 500;
-}
-
-.questionTimerWrapper {
-  margin: 0 0 16px 0;
-}
-
-.timeExpiredMessage {
-  margin-bottom: 16px;
-}
-
-// Question content classes
-.questionImages {
-  margin: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.questionImage {
-  border: 1px solid $ms-color-neutralLight;
-  padding: 8px;
-  border-radius: 4px;
-  background-color: #f9f9f9;
-  text-align: center;
-  
-  img {
-    max-width: 100%;
-    height: auto;
-  }
-}
-
-.imageCaption {
-  font-style: italic;
-  margin-top: 8px;
-  color: $ms-color-neutralSecondary;
-  font-size: 14px;
-}
-
-.questionCodeSnippets {
-  margin: 16px 0;
+  background-color: white;
 }
 
 .multiSelectChoice {
@@ -889,49 +958,112 @@
   }
 }
 
-.choiceImage {
-  margin-top: 8px;
-  margin-left: 24px; /* Indent to align with checkbox */
-  margin-bottom: 8px;
-  max-width: 300px;
-  border: 1px solid $ms-color-neutralLight;
-  padding: 4px;
-  border-radius: 2px;
-  background-color: white;
+// Results summary styles
+.resultsSummaryCard {
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
 }
 
-/* Add these styles to your Quiz.module.scss file */
-
-/* Add these missing class names to your Quiz.module.scss file */
-
-/* AddQuestionDialog.tsx missing class names */
-.choiceInputRow {
+.resultsStat {
   display: flex;
   align-items: center;
-  width: 100%;
-  margin-bottom: 8px;
-}
-
-.choiceCheckbox {
-  margin-right: 8px;
-  min-width: 20px;
-}
-
-.choiceTextField {
-  flex-grow: 1;
-  margin-right: 8px;
-}
-
-.choiceDeleteButton {
-  margin-left: 8px;
-}
-
-.addImageChoiceButton {
-  margin-top: 4px;
   margin-bottom: 12px;
+
+  i {
+    margin-right: 12px;
+    font-size: 20px;
+    color: #0078d4;
+  }
 }
 
-/* QuizStartPage.tsx missing class names */
+.scoreCircle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+
+  .scoreValue {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .scoreLabel {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+}
+
+.resultsTable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 20px 0;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  th {
+    background-color: #0078d4;
+    color: white;
+    font-weight: 600;
+    text-align: left;
+    padding: 12px 16px;
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #eaeaea;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+
+  tr:hover {
+    background-color: #f0f0f0;
+  }
+}
+
+.resultStatusBox {
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+
+  &.correct {
+    background-color: rgba(16, 124, 16, 0.1);
+    border: 1px solid rgba(16, 124, 16, 0.3);
+  }
+
+  &.incorrect {
+    background-color: rgba(209, 52, 56, 0.1);
+    border: 1px solid rgba(209, 52, 56, 0.3);
+  }
+}
+
+// Quiz Start Page styles
 .quizStartPage {
   padding: 24px;
   max-width: 800px;
@@ -1027,30 +1159,13 @@
   text-align: center;
 }
 
-/* QuizTimer.tsx missing class names */
-.quizTimerContainer {
-  margin: 16px 0;
-  padding: 12px;
-  background-color: #f9f9f8;
-  border-radius: 4px;
+.resumeButton {
+  background-color: #f0f4f9;
+  border-color: #0078d4;
+  color: #0078d4;
 }
 
-.timerNotification {
-  margin-bottom: 12px;
-}
-
-.quizTimerIcon {
-  font-size: 18px;
-  margin-right: 8px;
-}
-
-.quizTimerText {
-  font-size: 16px;
-  font-weight: 500;
-  min-width: 60px;
-}
-
-/* Additional styles for matching questions feature */
+// Matching question styles
 .matchingQuestion {
   margin: 16px 0;
 }
@@ -1076,9 +1191,16 @@
 
 .matchingPairRow {
   margin: 12px 0;
-  padding: 8px;
+  padding: 12px;
   background-color: #f9f9f9;
+  border: 1px solid #e6e6e6;
   border-radius: 4px;
+  
+  & > div {
+    @media (max-width: 640px) {
+      flex-direction: column;
+    }
+  }
 }
 
 .matchingItemField {
@@ -1087,242 +1209,98 @@
 }
 
 .matchingDeleteButton {
-  align-self: flex-end;
-  margin-bottom: 8px;
+  align-self: center;
+  margin-top: 8px;
 }
 
 .addPairButton {
   margin-top: 16px;
 }
-.resumeButton {
-  background-color: #f0f4f9;
-  border-color: #0078d4;
-  color: #0078d4;
-}
-@import '~@fluentui/react/dist/sass/References.scss';
 
-/* Add these new styles for results display */
-.resultsContainer {
-  text-align: center;
-  max-width: 800px; // Increased from 600px for better layout
-  margin: 0 auto;
-  padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+:global(.wideFormDialog) {
+  :global(.ms-Dialog-main) {
+    @media (min-width: 480px) {
+      width: auto !important;
+      max-width: 900px !important;
+      min-width: 650px !important;
+    }
+  }
 
-.resultsSummaryCard {
-  background-color: #f8f8f8;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 24px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  :global(.ms-Modal-scrollableContent) {
+    max-width: none !important;
   }
 }
 
-.resultsStat {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-
-  i {
-    margin-right: 12px;
-    font-size: 20px;
-    color: #0078d4;
+.addQuestionDialog {
+  :global(.ms-Dialog-main) {
+    @media (min-width: 480px) {
+      width: auto !important;
+      max-width: 900px !important;
+      min-width: 650px !important;
+    }
   }
 }
 
-.scoreCircle {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  color: white;
-  font-weight: bold;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease;
-
-  &:hover {
-    transform: scale(1.05);
-  }
-
-  .scoreValue {
-    font-size: 24px;
-    line-height: 1;
-  }
-
-  .scoreLabel {
-    font-size: 12px;
-    opacity: 0.9;
-  }
-}
-
-.scoreCard {
-  background-color: $ms-color-white;
-  border-radius: 8px;
-  padding: 24px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.scoreBadge {
-  width: 160px;
-  height: 160px;
-  border-radius: 80px;
-  margin: 0 auto 24px auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
-
-  &:hover {
-    transform: scale(1.05);
-  }
-}
-
-.resultsTable {
+/* Enhance form layout for the wider dialog */
+.formWrapper {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 0 0 8px 0;
+  overflow-y: auto;
+  max-height: 70vh;
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin: 20px 0;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
 
-  th {
-    background-color: #0078d4;
-    color: white;
-    font-weight: 600;
-    text-align: left;
-    padding: 12px 16px;
-  }
-
-  td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #eaeaea;
-  }
-
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  tr:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-
-  tr:hover {
-    background-color: #f0f0f0;
+/* Make rich text editor more prominent in the wider space */
+.richTextEditor {
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+  
+  :global(.pnp-richtext-wrapper) {
+    border: 1px solid #c8c6c4;
+    border-radius: 2px;
+    min-height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
   }
 }
 
-.questionAccordion {
-  margin-bottom: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: hidden;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: #c8c8c8;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  }
-
-  :global(.ms-Accordion-button) {
-    background-color: #f9f9f9;
-    padding: 12px;
-    font-weight: 500;
-  }
-
-  :global(.ms-Accordion) {
-    border-radius: 4px;
-    margin-bottom: 16px;
-    overflow: hidden;
-  }
-
-  :global(.ms-Accordion-panel) {
-    padding: 16px;
-  }
+/* Enhanced choice rows for the wider layout */
+.choicesContainer {
+  width: 100%;
+  padding: 20px;
+  margin-bottom: 20px;
 }
 
-.correctQuestion {
-  :global(.ms-Accordion-button) {
-    background-color: rgba(16, 124, 16, 0.1);
-    border-left: 4px solid #107c10;
-  }
-}
-
-.incorrectQuestion {
-  :global(.ms-Accordion-button) {
-    background-color: rgba(209, 52, 56, 0.1);
-    border-left: 4px solid #d13438;
-  }
-}
-
-.answerBox, .correctAnswerBox {
-  padding: 12px;
-  background-color: white;
-  border: 1px solid #eaeaea;
-  border-radius: 4px;
-  min-height: 40px;
-  margin-top: 8px;
-}
-
-.correctAnswerBox {
-  border-color: #107c10;
-  background-color: rgba(16, 124, 16, 0.05);
-}
-
-.questionDetails {
+.choiceRow {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
   padding: 16px;
   background-color: #f9f9f9;
-  border-radius: 0 0 4px 4px;
+  border: 1px solid #e6e6e6;
+  border-radius: 4px;
+  gap: 12px;
 }
 
-.resultStatusBox {
-  padding: 12px;
-  border-radius: 4px;
-  margin-bottom: 16px;
-
-  &.correct {
-    background-color: rgba(16, 124, 16, 0.1);
-    border: 1px solid rgba(16, 124, 16, 0.3);
-  }
-
-  &.incorrect {
-    background-color: rgba(209, 52, 56, 0.1);
-    border: 1px solid rgba(209, 52, 56, 0.3);
+/* Improved spacing for matching pairs */
+.matchingPairRow {
+  margin: 16px 0;
+  padding: 16px;
+  
+  & > div {
+    gap: 16px;
   }
 }
 
-.explanationBox {
-  margin-top: 16px;
-  background-color: rgba(0, 120, 212, 0.1);
-  border: 1px solid rgba(0, 120, 212, 0.3);
-  border-radius: 4px;
-  padding: 12px;
-}
-
-.correctIcon {
-  color: #107c10;
-  margin-right: 6px;
-}
-
-.incorrectIcon {
-  color: #d13438;
-  margin-right: 6px;
-}
-
-.detailColumn {
-  flex: 1;
-  min-width: 200px;
-  margin-bottom: 12px;
+/* Better footer button layout */
+.formButtons {
+  margin-top: 24px;
+  padding-top: 20px;
+  gap: 12px;
+  
+  button {
+    min-width: 100px;
+  }
 }

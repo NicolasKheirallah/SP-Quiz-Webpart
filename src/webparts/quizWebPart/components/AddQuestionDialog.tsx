@@ -58,6 +58,11 @@ const stackTokens: IStackTokens = {
   childrenGap: 15
 };
 
+// Stack tokens for choice row
+const choiceRowStackTokens: IStackTokens = {
+  childrenGap: 8
+};
+
 // Custom styles for the form section title
 const formSectionTitleStyles: ITextStyles = {
   root: {
@@ -72,6 +77,22 @@ const formSectionTitleStyles: ITextStyles = {
 const spinButtonStyles: Partial<ISpinButtonStyles> = {
   spinButtonWrapper: {
     width: 100
+  }
+};
+
+// This is the key fix for dialog width issues
+const modalStyles = {
+  main: {
+    selectors: {
+      '@media (min-width: 480px)': {
+        width: 'auto !important',
+        maxWidth: '900px !important',
+        minWidth: '700px !important'
+      }
+    }
+  },
+  scrollableContent: {
+    maxWidth: 'none !important'
   }
 };
 
@@ -96,7 +117,6 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     { id: uuidv4(), leftItem: '', rightItem: '' },
     { id: uuidv4(), leftItem: '', rightItem: '' }
   ]);
-
 
   const [correctChoiceId, setCorrectChoiceId] = useState('');
   const [shortAnswerText, setShortAnswerText] = useState('');
@@ -172,7 +192,6 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
       if (initialQuestion.type === QuestionType.Matching && initialQuestion.matchingPairs) {
         setMatchingPairs([...initialQuestion.matchingPairs]);
       }
-
     }
   }, [initialQuestion]);
 
@@ -267,149 +286,146 @@ const AddQuestionDialog: React.FC<IAddQuestionFormProps> = ({
     ));
   };
 
-// Update the handleSubmit and handlePreview methods to include matchingPairs:
-
-const handleSubmit = (): void => {
-  // Validation
-  if (!title.trim()) {
-    setValidationError('Question title is required.');
-    return;
-  }
-
-  if (!category && !newCategory) {
-    setValidationError('Please select or enter a category.');
-    return;
-  }
-
-  // Validate based on question type
-  if (questionType === QuestionType.MultipleChoice || questionType === QuestionType.TrueFalse) {
-    if (choices.filter(c => c.text.trim()).length < 2) {
-      setValidationError('At least 2 valid choices are required.');
+  const handleSubmit = (): void => {
+    // Validation
+    if (!title.trim()) {
+      setValidationError('Question title is required.');
       return;
     }
 
-    if (!choices.some(c => c.isCorrect)) {
-      setValidationError('Please mark at least one choice as correct.');
-      return;
-    }
-  } else if (questionType === QuestionType.MultiSelect) {
-    if (choices.filter(c => c.text.trim()).length < 2) {
-      setValidationError('At least 2 valid choices are required.');
+    if (!category && !newCategory) {
+      setValidationError('Please select or enter a category.');
       return;
     }
 
-    if (!choices.some(c => c.isCorrect)) {
-      setValidationError('Please mark at least one choice as correct.');
-      return;
-    }
-  } else if (questionType === QuestionType.ShortAnswer) {
-    if (!shortAnswerText.trim()) {
-      setValidationError('Please enter the correct answer for the short answer question.');
-      return;
-    }
-  } else if (questionType === QuestionType.Matching) {
-    // Validate matching pairs
-    if (matchingPairs.length < 2) {
-      setValidationError('At least 2 matching pairs are required.');
-      return;
-    }
-    
-    // Check if all pairs have both left and right items
-    if (matchingPairs.some(pair => !pair.leftItem.trim() || !pair.rightItem.trim())) {
-      setValidationError('All matching pairs must have both left and right items.');
-      return;
-    }
-  }
+    // Validate based on question type
+    if (questionType === QuestionType.MultipleChoice || questionType === QuestionType.TrueFalse) {
+      if (choices.filter(c => c.text.trim()).length < 2) {
+        setValidationError('At least 2 valid choices are required.');
+        return;
+      }
 
-  // Points validation
-  const pointsValue = parseInt(points, 10);
-  if (isNaN(pointsValue) || pointsValue < 1) {
-    setValidationError('Points must be a positive number.');
-    return;
-  }
+      if (!choices.some(c => c.isCorrect)) {
+        setValidationError('Please mark at least one choice as correct.');
+        return;
+      }
+    } else if (questionType === QuestionType.MultiSelect) {
+      if (choices.filter(c => c.text.trim()).length < 2) {
+        setValidationError('At least 2 valid choices are required.');
+        return;
+      }
 
-  // Time limit validation (if set)
-  if (timeLimit !== undefined && (isNaN(timeLimit) || timeLimit < 5 || timeLimit > 3600)) {
-    setValidationError('Time limit must be between 5 seconds and 3600 seconds (1 hour).');
-    return;
-  }
+      if (!choices.some(c => c.isCorrect)) {
+        setValidationError('Please mark at least one choice as correct.');
+        return;
+      }
+    } else if (questionType === QuestionType.ShortAnswer) {
+      if (!shortAnswerText.trim()) {
+        setValidationError('Please enter the correct answer for the short answer question.');
+        return;
+      }
+    } else if (questionType === QuestionType.Matching) {
+      // Validate matching pairs
+      if (matchingPairs.length < 2) {
+        setValidationError('At least 2 matching pairs are required.');
+        return;
+      }
+      
+      // Check if all pairs have both left and right items
+      if (matchingPairs.some(pair => !pair.leftItem.trim() || !pair.rightItem.trim())) {
+        setValidationError('All matching pairs must have both left and right items.');
+        return;
+      }
+    }
 
-  // Create question object
-  const newQuestion: IQuizQuestion = {
-    id: initialQuestion ? initialQuestion.id : Date.now(),
-    title,
-    description: description, // Add the rich text description
-    category: category === 'new' ? newCategory : category,
-    type: questionType,
-    choices: choices.filter(c => c.text.trim()), // Filter out empty choices
-    correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
-    explanation: explanation.trim() || undefined,
-    points: pointsValue,
-    caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
-    // Add matching pairs if it's a matching question
-    matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
-    // Add timestamp for tracking
-    lastModified: new Date().toISOString(),
-    // Add new feature fields
-    images: images.length > 0 ? images : undefined,
-    codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
-    timeLimit: timeLimitEnabled ? timeLimit : undefined
+    // Points validation
+    const pointsValue = parseInt(points, 10);
+    if (isNaN(pointsValue) || pointsValue < 1) {
+      setValidationError('Points must be a positive number.');
+      return;
+    }
+
+    // Time limit validation (if set)
+    if (timeLimit !== undefined && (isNaN(timeLimit) || timeLimit < 5 || timeLimit > 3600)) {
+      setValidationError('Time limit must be between 5 seconds and 3600 seconds (1 hour).');
+      return;
+    }
+
+    // Create question object
+    const newQuestion: IQuizQuestion = {
+      id: initialQuestion ? initialQuestion.id : Date.now(),
+      title,
+      description: description, // Add the rich text description
+      category: category === 'new' ? newCategory : category,
+      type: questionType,
+      choices: choices.filter(c => c.text.trim()), // Filter out empty choices
+      correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
+      explanation: explanation.trim() || undefined,
+      points: pointsValue,
+      caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
+      // Add matching pairs if it's a matching question
+      matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
+      // Add timestamp for tracking
+      lastModified: new Date().toISOString(),
+      // Add new feature fields
+      images: images.length > 0 ? images : undefined,
+      codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+      timeLimit: timeLimitEnabled ? timeLimit : undefined
+    };
+
+    onSubmit(newQuestion);
   };
 
-  onSubmit(newQuestion);
-};
+  const handlePreview = (): void => {
+    // Create question object for preview
+    const previewQuestion: IQuizQuestion = {
+      id: initialQuestion ? initialQuestion.id : Date.now(),
+      title,
+      description: description, // Add the rich text description
+      category: category === 'new' ? newCategory : category,
+      type: questionType,
+      choices: choices.filter(c => c.text.trim()), // Filter out empty choices
+      correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
+      explanation: explanation.trim() || undefined,
+      points: parseInt(points, 10) || 1,
+      caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
+      // Add matching pairs if it's a matching question
+      matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
+      // Add new feature fields for preview
+      images: images.length > 0 ? images : undefined,
+      codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
+      timeLimit: timeLimit
+    };
 
-const handlePreview = (): void => {
-  // Create question object for preview
-  const previewQuestion: IQuizQuestion = {
-    id: initialQuestion ? initialQuestion.id : Date.now(),
-    title,
-    description: description, // Add the rich text description
-    category: category === 'new' ? newCategory : category,
-    type: questionType,
-    choices: choices.filter(c => c.text.trim()), // Filter out empty choices
-    correctAnswer: questionType === QuestionType.ShortAnswer ? shortAnswerText : undefined,
-    explanation: explanation.trim() || undefined,
-    points: parseInt(points, 10) || 1,
-    caseSensitive: questionType === QuestionType.ShortAnswer ? caseSensitive : undefined,
-    // Add matching pairs if it's a matching question
-    matchingPairs: questionType === QuestionType.Matching ? matchingPairs : undefined,
-    // Add new feature fields for preview
-    images: images.length > 0 ? images : undefined,
-    codeSnippets: codeSnippets.length > 0 ? codeSnippets : undefined,
-    timeLimit: timeLimit
+    onPreviewQuestion(previewQuestion);
   };
 
-  onPreviewQuestion(previewQuestion);
-};
-
-
-const resetForm = (): void => {
-  setTitle('');
-  setCategory('');
-  setNewCategory('');
-  setQuestionType(QuestionType.MultipleChoice);
-  setChoices([
-    { id: uuidv4(), text: '', isCorrect: false },
-    { id: uuidv4(), text: '', isCorrect: false },
-  ]);
-  setMatchingPairs([
-    { id: uuidv4(), leftItem: '', rightItem: '' },
-    { id: uuidv4(), leftItem: '', rightItem: '' }
-  ]);
-  setCorrectChoiceId('');
-  setShortAnswerText('');
-  setExplanation('');
-  setPoints('1');
-  setCaseSensitive(false);
-  setValidationError('');
-  setDescription('');
-  setImages([]);
-  setCodeSnippets([]);
-  setTimeLimit(undefined);
-  setAddingImage(false);
-  setAddingCodeSnippet(false);
-};
+  const resetForm = (): void => {
+    setTitle('');
+    setCategory('');
+    setNewCategory('');
+    setQuestionType(QuestionType.MultipleChoice);
+    setChoices([
+      { id: uuidv4(), text: '', isCorrect: false },
+      { id: uuidv4(), text: '', isCorrect: false },
+    ]);
+    setMatchingPairs([
+      { id: uuidv4(), leftItem: '', rightItem: '' },
+      { id: uuidv4(), leftItem: '', rightItem: '' }
+    ]);
+    setCorrectChoiceId('');
+    setShortAnswerText('');
+    setExplanation('');
+    setPoints('1');
+    setCaseSensitive(false);
+    setValidationError('');
+    setDescription('');
+    setImages([]);
+    setCodeSnippets([]);
+    setTimeLimit(undefined);
+    setAddingImage(false);
+    setAddingCodeSnippet(false);
+  };
 
   // Generate category dropdown options
   const categoryOptions: IDropdownOption[] = [
@@ -426,7 +442,6 @@ const resetForm = (): void => {
     { key: QuestionType.Matching, text: 'Matching' }
   ];
 
-
   // For True/False, create choice group options
   const tfOptions: IChoiceGroupOption[] = [
     { key: 'true', text: 'True' },
@@ -442,28 +457,34 @@ const resetForm = (): void => {
             <Text styles={formSectionTitleStyles}>Choices (select the correct answer)</Text>
             {choices.map((choice, idx) => (
               <div key={choice.id} className={styles.choiceRow}>
-                <div className={styles.choiceInputRow}>
-                  <Checkbox
-                    checked={choice.isCorrect}
-                    onChange={(_e, checked) => handleChoiceCorrectChange(choice.id, !!checked)}
-                    label=""
-                    className={styles.choiceCheckbox}
-                  />
-                  <TextField
-                    placeholder={`Choice ${idx + 1}`}
-                    value={choice.text}
-                    onChange={(_e, value) => handleChoiceTextChange(choice.id, value || '')}
-                    className={styles.choiceTextField}
-                  />
-                  <IconButton
-                    iconProps={deleteIcon}
-                    title="Delete"
-                    ariaLabel="Delete"
-                    onClick={() => setChoices(choices.filter(c => c.id !== choice.id))}
-                    disabled={choices.length <= 2} // Require at least 2 choices
-                    className={styles.choiceDeleteButton}
-                  />
-                </div>
+                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="start" style={{ width: '100%' }}>
+                  <Stack.Item>
+                    <Checkbox
+                      checked={choice.isCorrect}
+                      onChange={(_e, checked) => handleChoiceCorrectChange(choice.id, !!checked)}
+                      label=""
+                      className={styles.choiceCheckbox}
+                    />
+                  </Stack.Item>
+                  <Stack.Item grow>
+                    <TextField
+                      placeholder={`Choice ${idx + 1}`}
+                      value={choice.text}
+                      onChange={(_e, value) => handleChoiceTextChange(choice.id, value || '')}
+                      className={styles.choiceTextField}
+                    />
+                  </Stack.Item>
+                  <Stack.Item>
+                    <IconButton
+                      iconProps={deleteIcon}
+                      title="Delete"
+                      ariaLabel="Delete"
+                      onClick={() => setChoices(choices.filter(c => c.id !== choice.id))}
+                      disabled={choices.length <= 2} // Require at least 2 choices
+                      className={styles.choiceDeleteButton}
+                    />
+                  </Stack.Item>
+                </Stack>
 
                 {choice.image ? (
                   <div className={styles.choiceImageContainer}>
@@ -494,7 +515,6 @@ const resetForm = (): void => {
                 )}
               </div>
             ))}
-
 
             <Stack horizontal className={styles.buttonGroup}>
               <DefaultButton
@@ -525,6 +545,7 @@ const resetForm = (): void => {
                   ]);
                 }
               }}
+              styles={{ root: { marginTop: 16 } }}
             />
           </div>
         );
@@ -535,28 +556,34 @@ const resetForm = (): void => {
             <Text styles={formSectionTitleStyles}>Choices (select all correct answers)</Text>
             {choices.map((choice, idx) => (
               <div key={choice.id} className={styles.choiceRow}>
-                <div className={styles.choiceInputRow}>
-                  <Checkbox
-                    checked={choice.isCorrect}
-                    onChange={(_e, checked) => handleChoiceCorrectChange(choice.id, !!checked)}
-                    label=""
-                    className={styles.choiceCheckbox}
-                  />
-                  <TextField
-                    value={choice.text}
-                    onChange={(_e, value) => handleChoiceTextChange(choice.id, value || '')}
-                    placeholder={`Choice ${idx + 1}`}
-                    className={styles.choiceTextField}
-                  />
-                  <IconButton
-                    iconProps={deleteIcon}
-                    title="Delete"
-                    ariaLabel="Delete"
-                    onClick={() => setChoices(choices.filter(c => c.id !== choice.id))}
-                    disabled={choices.length <= 2} // Require at least 2 choices
-                    className={styles.choiceDeleteButton}
-                  />
-                </div>
+                <Stack horizontal tokens={choiceRowStackTokens} verticalAlign="start" style={{ width: '100%' }}>
+                  <Stack.Item>
+                    <Checkbox
+                      checked={choice.isCorrect}
+                      onChange={(_e, checked) => handleChoiceCorrectChange(choice.id, !!checked)}
+                      label=""
+                      className={styles.choiceCheckbox}
+                    />
+                  </Stack.Item>
+                  <Stack.Item grow>
+                    <TextField
+                      value={choice.text}
+                      onChange={(_e, value) => handleChoiceTextChange(choice.id, value || '')}
+                      placeholder={`Choice ${idx + 1}`}
+                      className={styles.choiceTextField}
+                    />
+                  </Stack.Item>
+                  <Stack.Item>
+                    <IconButton
+                      iconProps={deleteIcon}
+                      title="Delete"
+                      ariaLabel="Delete"
+                      onClick={() => setChoices(choices.filter(c => c.id !== choice.id))}
+                      disabled={choices.length <= 2} // Require at least 2 choices
+                      className={styles.choiceDeleteButton}
+                    />
+                  </Stack.Item>
+                </Stack>
 
                 {choice.image ? (
                   <div className={styles.choiceImageContainer}>
@@ -587,7 +614,6 @@ const resetForm = (): void => {
                 )}
               </div>
             ))}
-
 
             <Stack horizontal className={styles.buttonGroup}>
               <DefaultButton
@@ -631,39 +657,44 @@ const resetForm = (): void => {
             {matchingPairs.map((pair, idx) => (
               <div key={pair.id} className={styles.matchingPairRow}>
                 <Stack horizontal tokens={{ childrenGap: 12 }}>
-                  <TextField
-                    label={`Left Item ${idx + 1}`}
-                    value={pair.leftItem}
-                    onChange={(_e, value) => {
-                      const updatedPairs = [...matchingPairs];
-                      updatedPairs[idx].leftItem = value || '';
-                      setMatchingPairs(updatedPairs);
-                    }}
-                    className={styles.matchingItemField}
-                  />
-
-                  <TextField
-                    label={`Right Item ${idx + 1}`}
-                    value={pair.rightItem}
-                    onChange={(_e, value) => {
-                      const updatedPairs = [...matchingPairs];
-                      updatedPairs[idx].rightItem = value || '';
-                      setMatchingPairs(updatedPairs);
-                    }}
-                    className={styles.matchingItemField}
-                  />
-
-                  <IconButton
-                    iconProps={deleteIcon}
-                    title="Remove Pair"
-                    ariaLabel="Remove Matching Pair"
-                    onClick={() => {
-                      const updatedPairs = matchingPairs.filter((_, i) => i !== idx);
-                      setMatchingPairs(updatedPairs);
-                    }}
-                    className={styles.matchingDeleteButton}
-                    disabled={matchingPairs.length <= 2}
-                  />
+                  <Stack.Item grow>
+                    <TextField
+                      label={`Left Item ${idx + 1}`}
+                      value={pair.leftItem}
+                      onChange={(_e, value) => {
+                        const updatedPairs = [...matchingPairs];
+                        updatedPairs[idx].leftItem = value || '';
+                        setMatchingPairs(updatedPairs);
+                      }}
+                      className={styles.matchingItemField}
+                    />
+                  </Stack.Item>
+                  <Stack.Item grow>
+                    <TextField
+                      label={`Right Item ${idx + 1}`}
+                      value={pair.rightItem}
+                      onChange={(_e, value) => {
+                        const updatedPairs = [...matchingPairs];
+                        updatedPairs[idx].rightItem = value || '';
+                        setMatchingPairs(updatedPairs);
+                      }}
+                      className={styles.matchingItemField}
+                    />
+                  </Stack.Item>
+                  <Stack.Item align="end">
+                    <IconButton
+                      iconProps={deleteIcon}
+                      title="Remove Pair"
+                      ariaLabel="Remove Matching Pair"
+                      onClick={() => {
+                        const updatedPairs = matchingPairs.filter((_, i) => i !== idx);
+                        setMatchingPairs(updatedPairs);
+                      }}
+                      className={styles.matchingDeleteButton}
+                      disabled={matchingPairs.length <= 2}
+                      styles={{ root: { marginTop: '29px' } }}
+                    />
+                  </Stack.Item>
                 </Stack>
               </div>
             ))}
@@ -697,15 +728,11 @@ const resetForm = (): void => {
     title: initialQuestion ? 'Edit Question' : 'Add New Question'
   };
 
+  // Create modal props with styles to override width constraints
   const modalProps: IModalProps = {
     isBlocking: true,
-    styles: {
-      main: {
-        minWidth: '320px',
-        maxWidth: '850px',
-        width: '90vw'
-      }
-    }
+    styles: modalStyles,
+    className: 'wideFormDialog'
   };
 
   return (
@@ -714,6 +741,7 @@ const resetForm = (): void => {
       onDismiss={onCancel}
       dialogContentProps={dialogContentProps}
       modalProps={modalProps}
+      className={styles.addQuestionDialog}
     >
       {validationError && (
         <MessageBar
@@ -767,51 +795,56 @@ const resetForm = (): void => {
             </div>
           </div>
 
-          <Dropdown
-            label="Question Type"
-            required
-            selectedKey={questionType}
-            onChange={(_e, option) => {
-              if (option) {
-                const newType = option.key as QuestionType;
-                setQuestionType(newType);
+          <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+            <Stack.Item grow={1} style={{ minWidth: '200px', maxWidth: '50%' }}>
+              <Dropdown
+                label="Question Type"
+                required
+                selectedKey={questionType}
+                onChange={(_e, option) => {
+                  if (option) {
+                    const newType = option.key as QuestionType;
+                    setQuestionType(newType);
 
-                // Reset or initialize different fields based on question type
-                if (newType === QuestionType.TrueFalse) {
-                  setChoices([
-                    { id: 'true', text: 'True', isCorrect: false },
-                    { id: 'false', text: 'False', isCorrect: false }
-                  ]);
-                  setCorrectChoiceId('');
-                } else if (newType === QuestionType.MultipleChoice || newType === QuestionType.MultiSelect) {
-                  // Keep existing choices or reset if needed
-                  if (choices.length < 2) {
-                    setChoices([
-                      { id: uuidv4(), text: '', isCorrect: false },
-                      { id: uuidv4(), text: '', isCorrect: false }
-                    ]);
+                    // Reset or initialize different fields based on question type
+                    if (newType === QuestionType.TrueFalse) {
+                      setChoices([
+                        { id: 'true', text: 'True', isCorrect: false },
+                        { id: 'false', text: 'False', isCorrect: false }
+                      ]);
+                      setCorrectChoiceId('');
+                    } else if (newType === QuestionType.MultipleChoice || newType === QuestionType.MultiSelect) {
+                      // Keep existing choices or reset if needed
+                      if (choices.length < 2) {
+                        setChoices([
+                          { id: uuidv4(), text: '', isCorrect: false },
+                          { id: uuidv4(), text: '', isCorrect: false }
+                        ]);
+                      }
+                    } else if (newType === QuestionType.Matching) {
+                      // Initialize with two empty matching pairs
+                      setMatchingPairs([
+                        { id: uuidv4(), leftItem: '', rightItem: '' },
+                        { id: uuidv4(), leftItem: '', rightItem: '' }
+                      ]);
+                    }
                   }
-                } else if (newType === QuestionType.Matching) {
-                  // Initialize with two empty matching pairs
-                  setMatchingPairs([
-                    { id: uuidv4(), leftItem: '', rightItem: '' },
-                    { id: uuidv4(), leftItem: '', rightItem: '' }
-                  ]);
-                }
-              }
-            }}
-            options={questionTypeOptions}
-          />
+                }}
+                options={questionTypeOptions}
+              />
+            </Stack.Item>
 
-
-          <Dropdown
-            label="Category"
-            required
-            selectedKey={category}
-            onChange={(_e, option) => option && setCategory(option.key as string)}
-            options={categoryOptions}
-            placeholder="Select or add category"
-          />
+            <Stack.Item grow={1} style={{ minWidth: '200px', maxWidth: '50%' }}>
+              <Dropdown
+                label="Category"
+                required
+                selectedKey={category}
+                onChange={(_e, option) => option && setCategory(option.key as string)}
+                options={categoryOptions}
+                placeholder="Select or add category"
+              />
+            </Stack.Item>
+          </Stack>
 
           {category === 'new' && (
             <TextField
@@ -830,22 +863,25 @@ const resetForm = (): void => {
 
       {activeTab === 'additional' && (
         <Stack tokens={stackTokens} className={styles.formWrapper}>
-          <Toggle
-            label="Enable Time Limit"
-            checked={timeLimitEnabled}
-            onChange={(_e, checked) => {
-              setTimeLimitEnabled(!!checked);
-              if (!checked) {
-                setTimeLimit(undefined); // Clear the time limit if disabled
-              } else if (timeLimit === undefined) {
-                // Set a default value when enabling
-                setTimeLimit(60);
-              }
-            }}
-            onText="On"
-            offText="Off"
-          />
           <Stack horizontal tokens={{ childrenGap: 16 }} wrap>
+            <Stack.Item grow>
+              <Toggle
+                label="Enable Time Limit"
+                checked={timeLimitEnabled}
+                onChange={(_e, checked) => {
+                  setTimeLimitEnabled(!!checked);
+                  if (!checked) {
+                    setTimeLimit(undefined); // Clear the time limit if disabled
+                  } else if (timeLimit === undefined) {
+                    // Set a default value when enabling
+                    setTimeLimit(60);
+                  }
+                }}
+                onText="On"
+                offText="Off"
+              />
+            </Stack.Item>
+
             <Stack.Item>
               <TextField
                 label="Points"
@@ -966,30 +1002,39 @@ const resetForm = (): void => {
       )}
 
       <DialogFooter className={styles.formButtons}>
-        <PrimaryButton
-          onClick={handleSubmit}
-          text={initialQuestion ? 'Update Question' : 'Save Question'}
-          disabled={isSubmitting}
-          iconProps={saveIcon}
-        />
-        <DefaultButton
-          onClick={handlePreview}
-          text="Preview"
-          iconProps={previewIcon}
-        />
-        {!initialQuestion && (
-          <DefaultButton
-            onClick={resetForm}
-            text="Reset"
-            iconProps={resetIcon}
+        <Stack 
+          horizontal 
+          wrap 
+          tokens={{ childrenGap: 8 }} 
+          horizontalAlign="end"
+          verticalAlign="center"
+          styles={{ root: { width: '100%' } }}
+        >
+          <PrimaryButton
+            onClick={handleSubmit}
+            text={initialQuestion ? 'Update Question' : 'Save Question'}
+            disabled={isSubmitting}
+            iconProps={saveIcon}
           />
-        )}
-        <DefaultButton
-          onClick={onCancel}
-          text="Cancel"
-          disabled={isSubmitting}
-          iconProps={cancelIcon}
-        />
+          <DefaultButton
+            onClick={handlePreview}
+            text="Preview"
+            iconProps={previewIcon}
+          />
+          {!initialQuestion && (
+            <DefaultButton
+              onClick={resetForm}
+              text="Reset"
+              iconProps={resetIcon}
+            />
+          )}
+          <DefaultButton
+            onClick={onCancel}
+            text="Cancel"
+            disabled={isSubmitting}
+            iconProps={cancelIcon}
+          />
+        </Stack>
       </DialogFooter>
     </Dialog>
   );
