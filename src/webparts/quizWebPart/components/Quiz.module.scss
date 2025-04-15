@@ -1693,3 +1693,22 @@
     background: #f4f4f4;
   }
 }
+
+/* Category order dialog styles */
+.categoryItemDragEnter {
+  background-color: #f3f2f1;
+  border: 1px dashed #0078d4;
+}
+
+.fileDragIcon {
+  cursor: move;
+}
+
+.fileIconHeaderIcon {
+  padding: 0px;
+  font-size: 16px;
+}
+
+.categoryOrderButton {
+  margin-left: 8px;
+}

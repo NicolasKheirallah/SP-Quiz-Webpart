@@ -30,12 +30,13 @@ import {
   DialogFooter,
   IIconProps,
   IStackStyles,
-  Checkbox,
+  Checkbox
 } from '@fluentui/react';
 import { Pagination } from '@pnp/spfx-controls-react/lib/pagination';
 import styles from './Quiz.module.scss';
 import QuestionManagement from './QuestionManagement';
 import { SPHttpClient } from '@microsoft/sp-http';
+import CategoryOrderDialog from './CategoryOrderDialog';
 
 // Icons
 const editIcon: IIconProps = { iconName: 'Edit' };
@@ -110,9 +111,8 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       expiredQuestions: [],
       showSaveProgressDialog: false,
       hasSavedProgress: false,
-      showResumeDialog: false
-
-
+      showResumeDialog: false,
+      showCategoryOrderDialog: false
 
     };
   }
@@ -133,12 +133,15 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
 
 
   public componentDidMount(): void {
+    this.ensureResultsList().catch(error =>
+      console.error("Error ensuring results list:", error)
+    );
     this.randomizeQuestionsIfNeeded();
     this.checkForSavedProgress().catch((error) =>
       console.error("Error in checkForSavedProgress:", error)
     );
   }
-  
+
   public componentDidUpdate(prevProps: IQuizProps): void {
     // If randomize setting changes, update questions
     if (prevProps.randomizeQuestions !== this.props.randomizeQuestions ||
@@ -162,6 +165,18 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       }, () => this.randomizeQuestionsIfNeeded());
     }
   }
+  private handleOpenCategoryOrderDialog = (): void => {
+    this.setState({ showCategoryOrderDialog: true });
+  }
+  
+  private handleCloseCategoryOrderDialog = (): void => {
+    this.setState({ showCategoryOrderDialog: false });
+  }
+  
+  private handleUpdateCategories = (newCategories: string[]): void => {
+    this.setState({ categories: newCategories });
+  }
+  
   private handleOpenEditQuestionsDialog = (): void => {
     this.setState({ showEditQuestionsDialog: true });
   }
@@ -211,13 +226,13 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       await this.saveQuizProgress();
     } catch (error) {
       console.error("Error saving quiz progress:", error);
-      this.setState({ 
+      this.setState({
         submissionError: error instanceof Error ? error.message : 'Failed to save progress',
         isSubmitting: false
       });
     }
   };
-  
+
 
 
   private discardSavedProgress = async (): Promise<void> => {
@@ -300,6 +315,18 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         };
       });
 
+      // Ensure score values are all numbers
+      const finalScore = Number(this.state.score);
+      const finalTotalPoints = Number(this.state.totalPoints);
+      const finalScorePercentage = Number(scorePercentage);
+
+      // Double-check that we have valid score values
+      console.log("Saving quiz results with scores:", {
+        Score: finalScore,
+        TotalPoints: finalTotalPoints,
+        ScorePercentage: finalScorePercentage
+      });
+
       // Prepare detailed result data
       const resultData = {
         Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
@@ -309,9 +336,9 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         QuizTitle: this.props.title || 'SharePoint Quiz',
 
         // Score details - ensuring we have valid numbers
-        Score: this.state.score,
-        TotalPoints: this.state.totalPoints,
-        ScorePercentage: scorePercentage,
+        Score: finalScore,
+        TotalPoints: finalTotalPoints,
+        ScorePercentage: finalScorePercentage,
         QuestionsAnswered: this.state.answeredQuestions || 0,
         TotalQuestions: this.state.questions.length || 0,
 
@@ -391,73 +418,73 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         return undefined;
     }
   };
-  
-  
-  
-private checkForSavedProgress = async (): Promise<void> => {
-  try {
-    // Only check for saved progress in read mode
-    if (this.props.displayMode !== DisplayMode.Read) return;
 
-    console.log("Checking for saved progress...");
-    const { context } = this.props;
-    const spHttpClient = context.spHttpClient;
-    const webUrl = context.pageContext.web.absoluteUrl;
-    const currentUser = context.pageContext.user;
 
-    // Use the same list as quiz results or a dedicated progress list
-    const progressListName = "QuizProgress";
 
-    // Query for saved progress for this user and quiz
-    const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUser.loginName}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
-
-    console.log(`Checking saved progress at endpoint: ${endpoint}`);
-
+  private checkForSavedProgress = async (): Promise<void> => {
     try {
-      const response = await spHttpClient.get(
-        endpoint,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=nometadata',
-            'odata-version': ''
+      // Only check for saved progress in read mode
+      if (this.props.displayMode !== DisplayMode.Read) return;
+
+      console.log("Checking for saved progress...");
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      const currentUser = context.pageContext.user;
+
+      // Use the same list as quiz results or a dedicated progress list
+      const progressListName = "QuizProgress";
+
+      // Query for saved progress for this user and quiz
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUser.loginName}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
+
+      console.log(`Checking saved progress at endpoint: ${endpoint}`);
+
+      try {
+        const response = await spHttpClient.get(
+          endpoint,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'odata-version': ''
+            }
           }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error response when checking for saved progress: ${errorText}`);
+          return;
         }
-      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Error response when checking for saved progress: ${errorText}`);
-        return;
-      }
+        const data = await response.json();
+        console.log("Saved progress check response:", data);
 
-      const data = await response.json();
-      console.log("Saved progress check response:", data);
+        if (data.value && data.value.length > 0) {
+          // Found saved progress
+          const savedProgress = data.value[0];
+          console.log("Found saved progress:", savedProgress);
 
-      if (data.value && data.value.length > 0) {
-        // Found saved progress
-        const savedProgress = data.value[0];
-        console.log("Found saved progress:", savedProgress);
+          this.setState({
+            hasSavedProgress: true,
+            savedProgressId: savedProgress.Id
+          });
 
-        this.setState({
-          hasSavedProgress: true,
-          savedProgressId: savedProgress.Id
-        });
-
-        // Only show resume dialog in read mode and on start page
-        if (this.state.showStartPage) {
-          this.setState({ showResumeDialog: true });
+          // Only show resume dialog in read mode and on start page
+          if (this.state.showStartPage) {
+            this.setState({ showResumeDialog: true });
+          }
+        } else {
+          console.log("No saved progress found");
         }
-      } else {
-        console.log("No saved progress found");
+      } catch (error) {
+        console.error('Error in API call when checking for saved progress:', error);
       }
     } catch (error) {
-      console.error('Error in API call when checking for saved progress:', error);
+      console.error('Error checking for saved progress:', error);
     }
-  } catch (error) {
-    console.error('Error checking for saved progress:', error);
-  }
-};
+  };
 
   private saveQuizProgress = async (): Promise<boolean> => {
     try {
@@ -593,22 +620,22 @@ private checkForSavedProgress = async (): Promise<void> => {
    */
   private resumeQuiz = async (): Promise<void> => {
     try {
-      this.setState({ 
-        loading: true, 
+      this.setState({
+        loading: true,
         submissionError: '',
         showResumeDialog: false // Immediately close the resume dialog
       });
-  
+
       const { context } = this.props;
       const spHttpClient = context.spHttpClient;
       const webUrl = context.pageContext.web.absoluteUrl;
-  
+
       // Get saved progress from the QuizProgress list
       const progressListName = "QuizProgress";
       const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${this.state.savedProgressId})`;
-  
+
       console.log(`Fetching saved quiz progress from: ${endpoint}`);
-  
+
       const response = await spHttpClient.get(
         endpoint,
         SPHttpClient.configurations.v1,
@@ -619,20 +646,20 @@ private checkForSavedProgress = async (): Promise<void> => {
           }
         }
       );
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Error response when retrieving saved progress: ${errorText}`);
         throw new Error(`Failed to retrieve saved progress: ${response.status} ${response.statusText}`);
       }
-  
+
       const savedItem = await response.json();
       console.log("Retrieved saved quiz item:", savedItem);
-  
+
       if (!savedItem.QuizData) {
         throw new Error("Saved progress data is missing or corrupted");
       }
-  
+
       // Parse the saved quiz data
       let progressData: ISavedQuizProgress;
       try {
@@ -642,35 +669,35 @@ private checkForSavedProgress = async (): Promise<void> => {
         console.error("Error parsing saved QuizData JSON:", parseError);
         throw new Error("Could not parse saved quiz data. The data may be corrupted.");
       }
-  
+
       // Validate and merge saved questions with current question set
       const mergedQuestions = progressData.questions
         .filter(savedQuestion => this.isValidQuizQuestion(savedQuestion))
         .map((savedQuestion: Partial<IQuizQuestion>) => {
           // Find the matching original question to preserve any updated properties
           const originalQuestion = this.state.originalQuestions.find(q => q.id === savedQuestion.id);
-  
+
           if (originalQuestion) {
             // Combine the original question with the saved one, prioritizing saved data
-            return { 
-              ...originalQuestion, 
+            return {
+              ...originalQuestion,
               ...savedQuestion,
               // Ensure selected choices are preserved
-              selectedChoice: savedQuestion.selectedChoice 
+              selectedChoice: savedQuestion.selectedChoice
             } as IQuizQuestion;
           } else {
             // If we can't find the original question, just use the saved question
             return savedQuestion as IQuizQuestion;
           }
         });
-  
+
       if (mergedQuestions.length === 0) {
         throw new Error("No valid questions found in saved quiz data");
       }
-  
+
       // Count answered questions
       const answeredQuestions = mergedQuestions.filter(q => q.selectedChoice !== undefined).length;
-  
+
       // Restore quiz state
       this.setState({
         questions: mergedQuestions,
@@ -682,46 +709,46 @@ private checkForSavedProgress = async (): Promise<void> => {
         answeredQuestions,
         showResumeDialog: false
       });
-  
+
       // If there was a time limit, restore remaining time
       if (progressData.timeRemaining !== undefined && this.props.timeLimit) {
         this.setRemainingTime(progressData.timeRemaining);
       }
-  
+
       console.log("Quiz successfully resumed with", mergedQuestions.length, "questions");
-  
+
       // Delete the saved progress after successful resume
       await this.deleteSavedProgress(this.state.savedProgressId);
-  
+
     } catch (error) {
       console.error('Error resuming quiz:', error);
-  
+
       // Create a user-friendly error message
       let errorMessage = 'Failed to resume quiz';
       if (error instanceof Error) {
         errorMessage = `Failed to resume quiz: ${error.message}`;
       }
-  
+
       this.setState({
         loading: false,
         submissionError: errorMessage,
         showResumeDialog: false
       });
-  
+
       // Show error to user
       alert(`${errorMessage} Starting a new quiz instead.`);
-  
+
       // Fall back to starting a new quiz
       this.handleStartQuiz();
     }
   };
-  
+
   // Validation method
   private isValidQuizQuestion(obj: unknown): obj is IQuizQuestion {
     if (!obj || typeof obj !== 'object') return false;
-    
+
     const questionCandidate = obj as Partial<IQuizQuestion>;
-    
+
     return (
       // Check for required properties
       typeof questionCandidate.id === 'number' &&
@@ -730,7 +757,7 @@ private checkForSavedProgress = async (): Promise<void> => {
       typeof questionCandidate.type === 'string' &&
       Array.isArray(questionCandidate.choices) &&
       // Additional optional checks
-      questionCandidate.choices.every(choice => 
+      questionCandidate.choices.every(choice =>
         typeof choice === 'object' &&
         typeof choice.id === 'string' &&
         typeof choice.text === 'string' &&
@@ -738,19 +765,19 @@ private checkForSavedProgress = async (): Promise<void> => {
       )
     );
   }
-  
+
 
   private deleteSavedProgress = async (progressId?: number): Promise<void> => {
     if (!progressId) return;
-  
+
     try {
       const { context } = this.props;
       const spHttpClient = context.spHttpClient;
       const webUrl = context.pageContext.web.absoluteUrl;
       const progressListName = "QuizProgress";
-  
+
       const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${progressId})`;
-  
+
       await spHttpClient.fetch(
         endpoint,
         SPHttpClient.configurations.v1,
@@ -763,9 +790,9 @@ private checkForSavedProgress = async (): Promise<void> => {
           }
         }
       );
-  
+
       console.log(`Saved progress ${progressId} deleted successfully`);
-  
+
       // Reset saved progress state
       this.setState({
         savedProgressId: undefined,
@@ -776,7 +803,7 @@ private checkForSavedProgress = async (): Promise<void> => {
     }
   };
 
-  
+
   private renderSaveProgressDialog = (): JSX.Element | null => {
     if (!this.state.showSaveProgressDialog) return null;
 
@@ -1056,16 +1083,22 @@ private checkForSavedProgress = async (): Promise<void> => {
       });
     }
   }
-
   private handlePageChange = (page: number): void => {
     this.setState({ currentPage: page }, () => {
-      const questionsContainer = document.querySelector(`.${styles.questionsContainer}`);
-      if (questionsContainer) {
-        questionsContainer.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
+      // First try to find the web part container
+      const webPartContainer = document.querySelector(".quiz") ||
+        document.querySelector("[data-automation-id='webPartHeader']") ||
+        document.querySelector("[data-sp-feature-tag='SharePointWebPartsFull']");
+  
+      if (webPartContainer) {
+        const yOffset = -50; // Adjust offset as needed for fixed headers
+        const y = webPartContainer.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({
+          top: y,
+          behavior: 'smooth'
         });
       } else {
+        // Fallback - scroll to top of the page
         window.scrollTo({
           top: 0,
           behavior: 'smooth'
@@ -1073,6 +1106,32 @@ private checkForSavedProgress = async (): Promise<void> => {
       }
     });
   };
+  
+
+  // Optional improvement to maintain category sorting when categories are updated
+  private updateCategories(questions: IQuizQuestion[]): string[] {
+    const categoriesSet = new Set<string>();
+    questions.forEach(q => {
+      if (q.category) categoriesSet.add(q.category);
+    });
+
+    // Get all unique categories
+    const uniqueCategories = Array.from(categoriesSet);
+
+    // Preserve current sorting if possible
+    if (this.state.categories && this.state.categories.length > 1) {
+      const currentOrder = this.state.categories.filter(c => c !== 'All');
+      const newCategories = uniqueCategories.filter(c => !currentOrder.includes(c));
+
+      // Return all categories in the current order, plus any new ones
+      return ['All', ...currentOrder.filter(c => uniqueCategories.includes(c)), ...newCategories];
+    }
+
+    // Default: return in original order
+    return ['All', ...uniqueCategories];
+  }
+
+
   private prepareDetailedResults = (
     questions: IQuizQuestion[],
     score: number,
@@ -1084,14 +1143,14 @@ private checkForSavedProgress = async (): Promise<void> => {
     const correctlyAnsweredQuestions = questions.filter(q =>
       q.selectedChoice !== undefined && this.isQuestionCorrect(q)
     ).length;
-      
+
     // Calculate percentages
     const percentageAnswered = Math.round((answeredQuestions / totalQuestions) * 100);
     const percentageCorrect = Math.round((correctlyAnsweredQuestions / totalQuestions) * 100);
-    const percentageCorrectOfAnswered = answeredQuestions > 0 
+    const percentageCorrectOfAnswered = answeredQuestions > 0
       ? Math.round((correctlyAnsweredQuestions / answeredQuestions) * 100)
       : 0;
-  
+
     // Prepare question-by-question results
     const questionResults: IQuestionResult[] = questions.map(question => {
       // Skip questions that weren't answered
@@ -1107,11 +1166,11 @@ private checkForSavedProgress = async (): Promise<void> => {
           explanation: question.explanation
         };
       }
-  
+
       // Determine if the question was answered correctly
       const isCorrect = this.isQuestionCorrect(question);
       const points = question.points || 1;
-  
+
       // Format user answer for display
       let formattedUserAnswer: string | string[] | undefined;
 
@@ -1123,7 +1182,7 @@ private checkForSavedProgress = async (): Promise<void> => {
           formattedUserAnswer = selectedChoice ? selectedChoice.text : undefined;
           break;
         }
-      
+
         case QuestionType.MultiSelect: {
           if (Array.isArray(question.selectedChoice)) {
             // Map IDs to text values
@@ -1133,7 +1192,7 @@ private checkForSavedProgress = async (): Promise<void> => {
           }
           break;
         }
-      
+
         case QuestionType.Matching: {
           if (Array.isArray(question.selectedChoice)) {
             const userSelections = question.selectedChoice.map(selection => {
@@ -1146,17 +1205,17 @@ private checkForSavedProgress = async (): Promise<void> => {
               }
               return '';
             }).filter(Boolean);
-      
+
             formattedUserAnswer = userSelections.length > 0 ? userSelections : undefined;
           }
           break;
         }
-      
+
         case QuestionType.ShortAnswer:
           formattedUserAnswer = question.selectedChoice as string;
           break;
       }
-        
+
       return {
         id: question.id,
         title: question.title,
@@ -1168,7 +1227,7 @@ private checkForSavedProgress = async (): Promise<void> => {
         explanation: question.explanation
       };
     });
-  
+
     return {
       score,
       totalPoints,
@@ -1183,142 +1242,324 @@ private checkForSavedProgress = async (): Promise<void> => {
       timestamp: new Date().toISOString()
     };
   };
-  
-  
-
-  
 
 
-// Replace only the handleSubmitQuiz method in Quiz.tsx
-private handleSubmitQuiz = async (): Promise<void> => {
-  this.setState({
-    isSubmitting: true,
-    submissionError: ''
-  });
 
-  try {
-    // Calculate points for ALL questions
-    let totalQuizPoints = 0;
-    let earnedPoints = 0;
-    const allQuestions = this.state.questions;
-    let correctlyAnsweredQuestions = 0;
+  private validateResultsList = async (): Promise<boolean> => {
+    try {
+      const spHttpClient = this.props.context.spHttpClient;
+      const webUrl = this.props.context.pageContext.web.absoluteUrl;
+      const resultsListName = this.props.resultsListName || 'QuizResults';
 
-    // Calculate total possible points and earned points
-    allQuestions.forEach(question => {
-      // Get points for this question (default to 1 if not specified)
-      const questionPoints = question.points || 1;
-      totalQuizPoints += questionPoints;
+      // Get list fields
+      const response = await spHttpClient.get(
+        `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'odata-version': ''
+          }
+        }
+      );
 
-      // Only add points if the question was answered and correct
-      if (question.selectedChoice !== undefined && this.isQuestionCorrect(question)) {
-        earnedPoints += questionPoints;
-        correctlyAnsweredQuestions++; // Track correctly answered questions
+      if (!response.ok) {
+        console.error('Error getting list fields:', response.statusText);
+        return false;
       }
-    });
 
-    // Save results to SharePoint list
-    const savedSuccessfully = await this.saveQuizResults();
+      const data = await response.json();
+      const fields = data.value;
 
-    // Prepare detailed results with comprehensive metrics
-    const detailedResults = this.prepareDetailedResults(
-      allQuestions,
-      earnedPoints,
-      totalQuizPoints
-    );
+      // Define a type for the field
+      interface ISharePointField {
+        InternalName?: string;
+        Title: string;
+      }
 
-    // Log the results for debugging
-    console.log('Quiz submission results:', {
-      totalQuizPoints,
-      earnedPoints,
-      correctlyAnsweredQuestions,
-      savedSuccessfully
-    });
+      const fieldTitles = new Set(fields.map((field: ISharePointField) => field.InternalName || field.Title));
 
-    // Delete any existing saved progress
-    if (this.state.savedProgressId) {
-      await this.deleteSavedProgress(this.state.savedProgressId);
+      // Required fields for the results list
+      const requiredFields = [
+        'Title',          // Default field
+        'Score',          // Number field
+        'TotalPoints',    // Number field
+        'ScorePercentage',// Number field
+        'UserName',       // Text field
+        'UserEmail',      // Text field
+        'UserId',         // Text field
+        'QuizTitle',      // Text field
+        'QuestionDetails', // Multi-line text field
+        'QuestionsAnswered', // Number field
+        'TotalQuestions'  // Number field
+      ];
+
+      const missingFields = requiredFields.filter((field: string) => !fieldTitles.has(field));
+
+      if (missingFields.length > 0) {
+        console.warn(`List is missing the following fields: ${missingFields.join(', ')}`);
+
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error validating results list:', error);
+      return false;
     }
+  };
 
-    // Update state with results - using the state interface property
-    this.setState({
-      showResults: true,
-      score: earnedPoints,
-      totalQuestions: allQuestions.length,
-      totalPoints: totalQuizPoints,
-      answeredQuestions: allQuestions.filter(q => q.selectedChoice !== undefined).length,
-      correctlyAnsweredQuestions, // Using the property we added to IQuizState
-      submissionSuccess: savedSuccessfully,
-      isSubmitting: false,
-      detailedResults,
 
-      // Clear any saved progress state
-      savedProgressId: undefined,
-      hasSavedProgress: false
-    });
+  /**
+   * Ensures the results list exists with proper columns
+   */
+  private ensureResultsList = async (): Promise<void> => {
+    try {
+      const spHttpClient = this.props.context.spHttpClient;
+      const webUrl = this.props.context.pageContext.web.absoluteUrl;
+      const resultsListName = this.props.resultsListName || 'QuizResults';
 
-  } catch (error) {
-    console.error('Error submitting quiz:', error);
-
-    this.setState({
-      submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
-      isSubmitting: false
-    });
-
-    // Optional: Delete saved progress even if submission fails
-    if (this.state.savedProgressId) {
+      // Check if list exists
       try {
-        await this.deleteSavedProgress(this.state.savedProgressId);
-      } catch (deleteError) {
-        console.error('Error deleting saved progress during failed submission:', deleteError);
+        const listResponse = await spHttpClient.get(
+          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')`,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'odata-version': ''
+            }
+          }
+        );
+
+        if (listResponse.ok) {
+          // List exists, validate fields
+          const isValid = await this.validateResultsList();
+          if (!isValid) {
+            console.warn(`List '${resultsListName}' exists but may be missing required fields.`);
+          }
+          return;
+        }
+      } catch (error) {
+        console.log(`List '${resultsListName}' does not exist, creating it...`, error);
+      }
+
+      // Create the list
+      const createListResponse = await spHttpClient.post(
+        `${webUrl}/_api/web/lists`,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'Content-type': 'application/json;odata=nometadata',
+            'odata-version': ''
+          },
+          body: JSON.stringify({
+            Title: resultsListName,
+            BaseTemplate: 100, // Custom list
+            ContentTypesEnabled: false,
+            Description: 'Stores quiz results for the Quiz Web Part'
+          })
+        }
+      );
+
+      if (!createListResponse.ok) {
+        const errorText = await createListResponse.text();
+        console.error(`Error creating list '${resultsListName}':`, errorText);
+        return;
+      }
+
+      // Define the interface for field type
+      interface IFieldDefinition {
+        Title: string;
+        FieldTypeKind: number;
+      }
+
+      // List created, now add custom fields
+      const createFields: IFieldDefinition[] = [
+        { Title: 'Score', FieldTypeKind: 9 }, // Number field
+        { Title: 'TotalPoints', FieldTypeKind: 9 }, // Number field
+        { Title: 'ScorePercentage', FieldTypeKind: 9 }, // Number field
+        { Title: 'UserName', FieldTypeKind: 2 }, // Text field
+        { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
+        { Title: 'UserId', FieldTypeKind: 2 }, // Text field
+        { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
+        { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
+        { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
+        { Title: 'TotalQuestions', FieldTypeKind: 9 }, // Number field
+        { Title: 'ResultDate', FieldTypeKind: 4 } // Date/Time field
+      ];
+
+      // Create each field sequentially
+      for (const field of createFields) {
+        try {
+          await spHttpClient.post(
+            `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
+            SPHttpClient.configurations.v1,
+            {
+              headers: {
+                'Accept': 'application/json;odata=nometadata',
+                'Content-type': 'application/json;odata=nometadata',
+                'odata-version': ''
+              },
+              body: JSON.stringify({
+                Title: field.Title,
+                FieldTypeKind: field.FieldTypeKind
+              })
+            }
+          );
+        } catch (error) {
+          console.error(`Error creating field '${field.Title}':`, error);
+        }
+      }
+
+      console.log(`List '${resultsListName}' created with all required fields.`);
+    } catch (error) {
+      console.error('Error ensuring results list:', error);
+    }
+  };
+
+
+
+  // Replace only the handleSubmitQuiz method in Quiz.tsx
+  private handleSubmitQuiz = async (): Promise<void> => {
+    this.setState({
+      isSubmitting: true,
+      submissionError: ''
+    });
+
+    try {
+      // Calculate points for ALL questions
+      let totalQuizPoints = 0;
+      let earnedPoints = 0;
+      const allQuestions = this.state.questions;
+      let correctlyAnsweredQuestions = 0;
+
+      // Calculate total possible points and earned points
+      allQuestions.forEach(question => {
+        // Get points for this question (default to 1 if not specified)
+        const questionPoints = question.points || 1;
+        totalQuizPoints += questionPoints;
+
+        // Only add points if the question was answered and correct
+        if (question.selectedChoice !== undefined && this.isQuestionCorrect(question)) {
+          earnedPoints += questionPoints;
+          correctlyAnsweredQuestions++; // Track correctly answered questions
+        }
+      });
+
+      console.log("Quiz submission calculated results:", {
+        totalQuizPoints,
+        earnedPoints,
+        correctlyAnsweredQuestions,
+        percentage: Math.round((earnedPoints / totalQuizPoints) * 100)
+      });
+
+      // Make sure to update state BEFORE saving the results
+      // This ensures the correct values are available when saveQuizResults is called
+      this.setState({
+        score: earnedPoints,
+        totalPoints: totalQuizPoints,
+        totalQuestions: allQuestions.length,
+        answeredQuestions: allQuestions.filter(q => q.selectedChoice !== undefined).length,
+        correctlyAnsweredQuestions
+      }, async () => {
+        try {
+          // Save results to SharePoint list after state is updated
+          const savedSuccessfully = await this.saveQuizResults();
+
+          // Prepare detailed results with comprehensive metrics
+          const detailedResults = this.prepareDetailedResults(
+            allQuestions,
+            earnedPoints,
+            totalQuizPoints
+          );
+
+          // Delete any existing saved progress
+          if (this.state.savedProgressId) {
+            await this.deleteSavedProgress(this.state.savedProgressId);
+          }
+
+          // Update state with results
+          this.setState({
+            showResults: true,
+            submissionSuccess: savedSuccessfully,
+            isSubmitting: false,
+            detailedResults,
+            // Clear any saved progress state
+            savedProgressId: undefined,
+            hasSavedProgress: false
+          });
+        } catch (error) {
+          console.error('Error in saving quiz results:', error);
+          this.setState({
+            submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
+            isSubmitting: false
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+
+      this.setState({
+        submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
+        isSubmitting: false
+      });
+
+      // Optional: Delete saved progress even if submission fails
+      if (this.state.savedProgressId) {
+        try {
+          await this.deleteSavedProgress(this.state.savedProgressId);
+        } catch (deleteError) {
+          console.error('Error deleting saved progress during failed submission:', deleteError);
+        }
       }
     }
-  }
-};
-  
+  };
 
-private handleRetakeQuiz = (): void => {
-  const resetQuestions = this.state.originalQuestions.map(q => ({
-    ...q,
-    selectedChoice: undefined,
-    userAnswer: undefined,
-    isCorrect: undefined
-  }));
+  private handleRetakeQuiz = (): void => {
+    const resetQuestions = this.state.originalQuestions.map(q => ({
+      ...q,
+      selectedChoice: undefined,
+      userAnswer: undefined,
+      isCorrect: undefined
+    }));
 
-  const finalQuestions = this.props.randomizeQuestions 
-    ? this.shuffleArray(resetQuestions)
-    : resetQuestions;
+    const finalQuestions = this.props.randomizeQuestions
+      ? this.shuffleArray(resetQuestions)
+      : resetQuestions;
 
-  const finalQuestionsWithRandomAnswers = this.props.randomizeAnswers
-    ? finalQuestions.map(question => ({
+    const finalQuestionsWithRandomAnswers = this.props.randomizeAnswers
+      ? finalQuestions.map(question => ({
         ...question,
         choices: this.shuffleArray([...question.choices])
       }))
-    : finalQuestions;
+      : finalQuestions;
 
-  this.setState({
-    questions: finalQuestionsWithRandomAnswers,
-    currentPage: 1,
-    currentCategory: 'All',
-    showResults: false,
-    score: 0,
-    totalQuestions: 0,
-    totalPoints: 0,
-    answeredQuestions: 0,
-    submissionSuccess: false,
-    submissionError: '',
-    showStartPage: true,
-    quizStarted: false,
-    overallTimerExpired: false,
-    expiredQuestions: [],
-    savedProgressId: undefined,
-    hasSavedProgress: false,
-    detailedResults: undefined
-  });
+    this.setState({
+      questions: finalQuestionsWithRandomAnswers,
+      currentPage: 1,
+      currentCategory: 'All',
+      showResults: false,
+      score: 0,
+      totalQuestions: 0,
+      totalPoints: 0,
+      answeredQuestions: 0,
+      submissionSuccess: false,
+      submissionError: '',
+      showStartPage: true,
+      quizStarted: false,
+      overallTimerExpired: false,
+      expiredQuestions: [],
+      savedProgressId: undefined,
+      hasSavedProgress: false,
+      detailedResults: undefined
+    });
 
-  if (this.props.timeLimit) {
-    this.setRemainingTime(this.props.timeLimit);
-  }
-};
+    if (this.props.timeLimit) {
+      this.setRemainingTime(this.props.timeLimit);
+    }
+  };
 
   private handleAddQuestion = (): void => {
     this.setState({
@@ -1357,14 +1598,6 @@ private handleRetakeQuiz = (): void => {
     });
   }
 
-
-  private updateCategories(questions: IQuizQuestion[]): string[] {
-    const categoriesSet = new Set<string>();
-    questions.forEach(q => {
-      if (q.category) categoriesSet.add(q.category);
-    });
-    return ['All', ...Array.from(categoriesSet)];
-  }
 
   private handleAddQuestionCancel = (): void => {
     this.setState({ showAddQuestionForm: false });
@@ -1477,7 +1710,10 @@ private handleRetakeQuiz = (): void => {
   // Render methods
   private renderAdminPanel(): JSX.Element | null {
     if (this.props.displayMode !== DisplayMode.Edit) return null;
-
+  
+    // Add an icon for the Category Order button
+    const categoryOrderIcon: IIconProps = { iconName: 'BulletedList' };
+  
     return (
       <Stack horizontal tokens={stackTokens} className={styles.adminPanel}>
         <div className={styles.buttonGroup}>
@@ -1494,6 +1730,12 @@ private handleRetakeQuiz = (): void => {
             className={`${styles.actionButton} ${styles.secondary}`}
           />
           <DefaultButton
+            iconProps={categoryOrderIcon}
+            text="Category Order"
+            onClick={this.handleOpenCategoryOrderDialog}
+            className={`${styles.actionButton} ${styles.secondary} ${styles.categoryOrderButton}`}
+          />
+          <DefaultButton
             iconProps={importIcon}
             text="Import"
             onClick={this.handleImportQuestions}
@@ -1505,13 +1747,11 @@ private handleRetakeQuiz = (): void => {
             onClick={this.handleExportQuestions}
             className={`${styles.actionButton} ${styles.secondary}`}
           />
-
         </div>
       </Stack>
     );
   }
-
-
+  
 
 
   private renderConfirmDialog(): JSX.Element {
@@ -1568,18 +1808,19 @@ private handleRetakeQuiz = (): void => {
       showQuestionPreview,
       previewQuestion,
       showEditQuestionsDialog,
+      showCategoryOrderDialog,
       detailedResults,
       showStartPage,
       quizStarted,
       overallTimerExpired
     } = this.state;
-
+  
     const {
       questionsPerPage,
       showProgressIndicator,
       displayMode,
     } = this.props;
-
+  
     if (questions.length === 0) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -1588,13 +1829,13 @@ private handleRetakeQuiz = (): void => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-
+  
           {this.renderAdminPanel()}
-
+  
           <div className={styles.emptyState}>
             <Text variant="large">No questions have been added to this quiz yet.</Text>
             <Text>Use the admin panel to add questions or import from a file.</Text>
-
+  
             {displayMode === DisplayMode.Edit && (
               <Stack horizontal tokens={stackTokens} horizontalAlign="center" style={{ marginTop: '16px' }}>
                 <PrimaryButton
@@ -1605,7 +1846,7 @@ private handleRetakeQuiz = (): void => {
               </Stack>
             )}
           </div>
-
+  
           {/* Dialogs */}
           {showAddQuestionForm && (
             <AddQuestionDialog
@@ -1617,7 +1858,7 @@ private handleRetakeQuiz = (): void => {
               context={this.props.context}
             />
           )}
-
+  
           {importDialogOpen && (
             <ImportQuestionsDialog
               existingCategories={categories.filter(cat => cat !== 'All')}
@@ -1625,14 +1866,24 @@ private handleRetakeQuiz = (): void => {
               onCancel={this.handleImportQuestionsCancel}
             />
           )}
-
+  
+          {showCategoryOrderDialog && (
+            <CategoryOrderDialog
+              isOpen={showCategoryOrderDialog}
+              categories={categories}
+              questions={questions}
+              onUpdateCategories={this.handleUpdateCategories}
+              onDismiss={this.handleCloseCategoryOrderDialog}
+            />
+          )}
+  
           {this.renderConfirmDialog()}
           {this.renderSaveProgressDialog()}
           {this.renderResumeDialog()}
         </Stack>
       );
     }
-
+  
     if (displayMode === DisplayMode.Read && showStartPage) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -1641,7 +1892,7 @@ private handleRetakeQuiz = (): void => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-
+  
           <QuizStartPage
             title={this.props.title}
             onStartQuiz={this.handleStartQuiz}
@@ -1657,7 +1908,7 @@ private handleRetakeQuiz = (): void => {
         </Stack>
       );
     }
-
+  
     // Loading state
     if (loading) {
       return (
@@ -1666,7 +1917,7 @@ private handleRetakeQuiz = (): void => {
         </Stack>
       );
     }
-
+  
     // Results view
     if (showResults) {
       return (
@@ -1676,7 +1927,7 @@ private handleRetakeQuiz = (): void => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-
+  
           <QuizResults
             score={this.state.score}
             totalQuestions={this.state.totalQuestions}
@@ -1697,30 +1948,30 @@ private handleRetakeQuiz = (): void => {
         </Stack>
       );
     }
-
+  
     // Filter questions by category
     const filteredQuestions = currentCategory === 'All'
       ? questions
       : questions.filter(q => q.category === currentCategory);
-
+  
     // Paginate questions
     const startIndex = (currentPage - 1) * questionsPerPage;
     const paginatedQuestions = filteredQuestions.slice(startIndex, startIndex + questionsPerPage);
-
+  
     const allQuestionsAnswered = questions.length === answeredQuestions;
     const submitEnabled = !submitRequireAllAnswered ? answeredQuestions > 0 : allQuestionsAnswered;
-
+  
     // Quiz taker view (or edit mode)
     return (
-      <Stack styles={mainContainerStyles}>
+      <Stack styles={mainContainerStyles} className="quiz">
         <WebPartTitle
           displayMode={this.props.displayMode}
           title={this.props.title}
           updateProperty={this.props.updateProperty}
         />
-
+  
         {this.renderAdminPanel()}
-
+  
         {submissionError && (
           <MessageBar
             messageBarType={MessageBarType.error}
@@ -1730,7 +1981,7 @@ private handleRetakeQuiz = (): void => {
             {submissionError}
           </MessageBar>
         )}
-
+  
         {/* Overall Quiz Timer - Only show when quiz is started in display mode */}
         {displayMode === DisplayMode.Read && quizStarted && this.props.timeLimit && this.props.timeLimit > 0 && (
           <QuizTimer
@@ -1739,7 +1990,7 @@ private handleRetakeQuiz = (): void => {
             paused={showResults}
           />
         )}
-
+  
         {overallTimerExpired && (
           <MessageBar
             messageBarType={MessageBarType.severeWarning}
@@ -1749,7 +2000,7 @@ private handleRetakeQuiz = (): void => {
             The time limit for this quiz has expired. Your answers have been automatically submitted.
           </MessageBar>
         )}
-
+  
         {displayMode === DisplayMode.Edit && (
           <Stack horizontal horizontalAlign="space-between" tokens={stackTokens}>
             <Checkbox
@@ -1759,8 +2010,8 @@ private handleRetakeQuiz = (): void => {
             />
           </Stack>
         )}
-
-        {/* Progress Indicator - New feature */}
+  
+        {/* Progress Indicator */}
         {showProgressIndicator && (
           <QuizProgressTracker
             progress={{
@@ -1776,7 +2027,7 @@ private handleRetakeQuiz = (): void => {
             showIcon={true}
           />
         )}
-
+  
         <Pivot
           selectedKey={currentCategory}
           onLinkClick={this.handleCategoryChange}
@@ -1786,7 +2037,7 @@ private handleRetakeQuiz = (): void => {
             <PivotItem key={category} headerText={category} itemKey={category} />
           ))}
         </Pivot>
-
+  
         {filteredQuestions.length === 0 ? (
           <MessageBar messageBarType={MessageBarType.info}>
             No questions found for this category.
@@ -1806,7 +2057,7 @@ private handleRetakeQuiz = (): void => {
                 />
               ))}
             </div>
-
+  
             {filteredQuestions.length > questionsPerPage && (
               <div className={styles.paginationContainer}>
                 <Pagination
@@ -1817,7 +2068,7 @@ private handleRetakeQuiz = (): void => {
                 />
               </div>
             )}
-
+  
             <div className={styles.submitContainer}>
               {isSubmitting ? (
                 <Spinner size={SpinnerSize.small} label="Submitting quiz..." />
@@ -1845,7 +2096,7 @@ private handleRetakeQuiz = (): void => {
             </div>
           </>
         )}
-
+  
         {/* Dialogs */}
         {showQuestionPreview && previewQuestion && (
           <QuestionPreview
@@ -1853,7 +2104,7 @@ private handleRetakeQuiz = (): void => {
             onClose={this.handleClosePreview}
           />
         )}
-
+  
         {showEditQuestionsDialog && (
           <Dialog
             hidden={false}
@@ -1890,13 +2141,13 @@ private handleRetakeQuiz = (): void => {
                   <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
                     <Text variant="large">{questions.length} questions total</Text>
                   </Stack>
-
+  
                   <QuestionManagement
                     questions={questions}
                     onUpdateQuestions={(updatedQuestions) => {
                       // Update questions through the prop callback
                       this.props.updateQuestions(updatedQuestions);
-
+  
                       // Update local state for immediate re-render
                       this.setState({
                         questions: updatedQuestions,
@@ -1933,7 +2184,17 @@ private handleRetakeQuiz = (): void => {
             </DialogFooter>
           </Dialog>
         )}
-
+  
+        {showCategoryOrderDialog && (
+          <CategoryOrderDialog
+            isOpen={showCategoryOrderDialog}
+            categories={categories}
+            questions={questions}
+            onUpdateCategories={this.handleUpdateCategories}
+            onDismiss={this.handleCloseCategoryOrderDialog}
+          />
+        )}
+  
         {showAddQuestionForm && (
           <AddQuestionDialog
             categories={categories.filter(cat => cat !== 'All')}
@@ -1945,7 +2206,7 @@ private handleRetakeQuiz = (): void => {
             context={this.props.context}
           />
         )}
-
+  
         {importDialogOpen && (
           <ImportQuestionsDialog
             existingCategories={categories.filter(cat => cat !== 'All')}
@@ -1953,7 +2214,7 @@ private handleRetakeQuiz = (): void => {
             onCancel={this.handleImportQuestionsCancel}
           />
         )}
-
+  
         {this.renderConfirmDialog()}
         {this.renderSaveProgressDialog()}
         {this.renderResumeDialog()}

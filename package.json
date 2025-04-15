@@ -12,7 +12,7 @@
     "test": "gulp test"
   },
   "dependencies": {
-    "@fluentui/react": "^8.122.14",
+    "@fluentui/react": "^8.122.15",
     "@fluentui/react-components": "^9.61.6",
     "@fluentui/react-radio": "^9.3.4",
     "@microsoft/sp-component-base": "1.20.0",

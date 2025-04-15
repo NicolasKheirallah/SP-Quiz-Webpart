@@ -93,7 +93,9 @@ export interface IQuizState {
   showResumeDialog: boolean;
   savedProgressId?: number;
   timeRemaining?: number;
-  correctlyAnsweredQuestions?: number
+  correctlyAnsweredQuestions?: number;
+  showCategoryOrderDialog: boolean;
+
 }
 
 
