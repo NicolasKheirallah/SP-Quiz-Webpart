@@ -262,3 +262,32 @@ export interface IQuizStartPageProps {
   onResumeQuiz?: () => void;
 
 }
+export interface IQuizResult {
+  Title: string;
+  UserName: string;
+  UserId: string;
+  UserEmail: string;
+  QuizTitle: string;
+  Score: number;
+  TotalPoints: number;
+  ScorePercentage: number;
+  QuestionsAnswered: number;
+  TotalQuestions: number;
+  QuestionDetails: string;
+  ResultDate: string;
+}
+
+/**
+ * Update ISavedQuizProgress interface with an optional id field
+ */
+export interface ISavedQuizProgress {
+  id?: number;
+  userId: string;
+  userName: string;
+  quizTitle: string;
+  questions: IQuizQuestion[];
+  lastSaved: string;
+  timeRemaining?: number;
+  currentPage: number;
+  currentCategory: string;
+}

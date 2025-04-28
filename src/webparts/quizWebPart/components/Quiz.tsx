@@ -136,7 +136,22 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     this.ensureResultsList().catch(error =>
       console.error("Error ensuring results list:", error)
     );
+
+    if (this.props.displayMode === DisplayMode.Read && !this.state.hasSavedProgress) {
+      const resetQuestions = this.state.questions.map(q => ({
+        ...q,
+        selectedChoice: undefined
+      }));
+      this.setState({ 
+        questions: resetQuestions,
+        answeredQuestions: 0
+      });
+    }
+    
+    // Apply randomization after resetting answers
     this.randomizeQuestionsIfNeeded();
+    
+    // Only check for saved progress after resetting answers
     this.checkForSavedProgress().catch((error) =>
       console.error("Error in checkForSavedProgress:", error)
     );
