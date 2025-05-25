@@ -3,6 +3,48 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 import { IQuizResult, ISavedQuizProgress } from '../interfaces';
 
+// Define interfaces for Graph API responses
+interface IGraphListResponse {
+  value: IGraphList[];
+}
+
+interface IGraphList {
+  id: string;
+  displayName: string;
+}
+
+interface IGraphListItem {
+  id: string;
+  fields: Record<string, unknown>;
+}
+
+interface IGraphListItemsResponse {
+  value: IGraphListItem[];
+}
+
+interface IBatchRequest {
+  id: string;
+  method: string;
+  url: string;
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+}
+
+interface IBatchResponse {
+  id: string;
+  status: number;
+  body: Record<string, unknown>;
+}
+
+interface IBatchResponseCollection {
+  responses: IBatchResponse[];
+}
+
+interface ISharePointItemResponse {
+  Id: number;
+  [key: string]: unknown;
+}
+
 /**
  * Service class for handling quiz data operations with Microsoft Graph API
  * and SharePoint REST API as fallback
@@ -49,7 +91,7 @@ export class QuizService {
             const resultsResponse = await graphClient
                 .api(`/sites/${this.siteId}/lists`)
                 .filter(`displayName eq '${resultsListName}'`)
-                .get();
+                .get() as IGraphListResponse;
 
             if (resultsResponse.value && resultsResponse.value.length > 0) {
                 this.listId = resultsResponse.value[0].id;
@@ -59,7 +101,7 @@ export class QuizService {
             const progressResponse = await graphClient
                 .api(`/sites/${this.siteId}/lists`)
                 .filter(`displayName eq '${progressListName}'`)
-                .get();
+                .get() as IGraphListResponse;
 
             if (progressResponse.value && progressResponse.value.length > 0) {
                 this.progressListId = progressResponse.value[0].id;
@@ -95,7 +137,7 @@ export class QuizService {
                     list: {
                         template: 'genericList'
                     }
-                });
+                }) as IGraphList;
 
             // Store the list ID
             if (listDescription === 'Quiz Results') {
@@ -199,7 +241,7 @@ export class QuizService {
     /**
      * Saves quiz results using Graph API with REST API fallback
      */
-    public async saveQuizResults(quizResult: IQuizResult): Promise<any> {
+    public async saveQuizResults(quizResult: IQuizResult): Promise<IGraphListItem | ISharePointItemResponse> {
         try {
             // Try using Graph API first
             if (this.listId) {
@@ -218,7 +260,7 @@ export class QuizService {
     /**
      * Saves quiz results using Graph API
      */
-    private async saveQuizResultsWithGraph(quizResult: IQuizResult): Promise<any> {
+    private async saveQuizResultsWithGraph(quizResult: IQuizResult): Promise<IGraphListItem> {
         try {
             const graphClient: MSGraphClientV3 = await this.context.msGraphClientFactory.getClient('3');
 
@@ -243,7 +285,7 @@ export class QuizService {
             // Create the list item
             const response = await graphClient
                 .api(`/sites/${this.siteId}/lists/${this.listId}/items`)
-                .post(listItem);
+                .post(listItem) as IGraphListItem;
 
             return response;
         } catch (error) {
@@ -255,7 +297,7 @@ export class QuizService {
     /**
      * Saves quiz results using REST API
      */
-    private async saveQuizResultsWithREST(quizResult: IQuizResult): Promise<any> {
+    private async saveQuizResultsWithREST(quizResult: IQuizResult): Promise<ISharePointItemResponse> {
         const spHttpClient = this.context.spHttpClient;
         const webUrl = this.context.pageContext.web.absoluteUrl;
         const resultsListName = 'QuizResults';
@@ -279,7 +321,7 @@ export class QuizService {
                 throw new Error(`Failed to save quiz results: ${errorText}`);
             }
 
-            return await response.json();
+            return await response.json() as ISharePointItemResponse;
         } catch (error) {
             console.error('Error saving quiz results with REST API:', error);
             throw error;
@@ -341,9 +383,9 @@ export class QuizService {
                 // Create new item
                 const response = await graphClient
                     .api(`/sites/${this.siteId}/lists/${this.progressListId}/items`)
-                    .post(listItem);
+                    .post(listItem) as IGraphListItem;
 
-                return response.id;
+                return parseInt(response.id);
             }
         } catch (error) {
             console.error('Error saving quiz progress with Graph API:', error);
@@ -402,13 +444,13 @@ export class QuizService {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await response.json() as Record<string, unknown>;
                 throw new Error(`Failed to save progress: ${JSON.stringify(errorData)}`);
             }
 
             // If this is a new record, get the ID
             if (!savedProgressId) {
-                const responseData = await response.json();
+                const responseData = await response.json() as ISharePointItemResponse;
                 return responseData.Id;
             }
         } catch (error) {
@@ -456,16 +498,17 @@ export class QuizService {
                 .filter(`fields/UserId eq '${userLoginName}' and fields/QuizTitle eq '${quizTitle}'`)
                 .orderby('fields/LastSaved desc')
                 .top(1)
-                .get();
+                .get() as IGraphListItemsResponse;
 
             if (response.value && response.value.length > 0) {
                 const savedItem = response.value[0];
 
                 // Parse the saved progress data
                 try {
-                    const progressData: ISavedQuizProgress = JSON.parse(savedItem.fields.QuizData);
+                    const quizDataField = savedItem.fields.QuizData as string;
+                    const progressData: ISavedQuizProgress = JSON.parse(quizDataField);
                     // Add the item ID so we can update it later
-                    progressData.id = savedItem.id;
+                    progressData.id = parseInt(savedItem.id);
                     return progressData;
                 } catch (parseError) {
                     console.error('Error parsing saved progress data:', parseError);
@@ -510,14 +553,15 @@ export class QuizService {
                 throw new Error(`Error response when retrieving saved progress: ${errorText}`);
             }
 
-            const data = await response.json();
+            const data = await response.json() as { value: ISharePointItemResponse[] };
 
             if (data.value && data.value.length > 0) {
                 const savedItem = data.value[0];
 
                 // Parse the saved progress data
                 try {
-                    const progressData: ISavedQuizProgress = JSON.parse(savedItem.QuizData);
+                    const quizDataField = savedItem.QuizData as string;
+                    const progressData: ISavedQuizProgress = JSON.parse(quizDataField);
                     // Add the item ID so we can update it later
                     progressData.id = savedItem.Id;
                     return progressData;
@@ -609,13 +653,7 @@ export class QuizService {
      * @param requests Array of request objects for batch processing
      * @returns Array of responses from the batch operation
      */
-    private async performBatchOperations(requests: {
-        id: string;
-        method: string;
-        url: string;
-        body?: any;
-        headers?: Record<string, string>;
-    }[]): Promise<any[]> {
+    private async performBatchOperations(requests: IBatchRequest[]): Promise<IBatchResponse[]> {
         try {
             const graphClient: MSGraphClientV3 = await this.context.msGraphClientFactory.getClient('3');
 
@@ -633,7 +671,7 @@ export class QuizService {
             // Send the batch request
             const batchResponse = await graphClient
                 .api('/$batch')
-                .post(batchRequestBody);
+                .post(batchRequestBody) as IBatchResponseCollection;
 
             // Process and return the responses
             if (batchResponse && batchResponse.responses) {
@@ -652,14 +690,14 @@ export class QuizService {
      * @param quizResults Array of quiz results to save
      * @returns Array of responses from the batch operation
      */
-    public async bulkSaveQuizResults(quizResults: IQuizResult[]): Promise<any[]> {
+    public async bulkSaveQuizResults(quizResults: IQuizResult[]): Promise<IBatchResponse[]> {
         try {
             if (!this.listId || quizResults.length === 0) {
                 throw new Error('List ID not available or no results to save');
             }
 
             // Prepare batch requests
-            const batchRequests = quizResults.map((result, index) => {
+            const batchRequests: IBatchRequest[] = quizResults.map((result, index) => {
                 return {
                     id: `result-${index}`,
                     method: 'POST',
@@ -689,11 +727,15 @@ export class QuizService {
             console.error('Error in bulkSaveQuizResults:', error);
 
             // Fall back to individual saves
-            const results = [];
+            const results: IBatchResponse[] = [];
             for (const quizResult of quizResults) {
                 try {
                     const result = await this.saveQuizResults(quizResult);
-                    results.push({ status: 200, id: quizResult.Title, body: result });
+                    results.push({ 
+                        status: 200, 
+                        id: quizResult.Title, 
+                        body: result as Record<string, unknown>
+                    });
                 } catch (saveError) {
                     results.push({
                         status: 500,
@@ -729,7 +771,7 @@ export class QuizService {
             }
 
             // Prepare batch requests
-            const batchRequests = quizTitles.map((title, index) => {
+            const batchRequests: IBatchRequest[] = quizTitles.map((title, index) => {
                 return {
                     id: `progress-${index}`,
                     method: 'GET',
@@ -746,15 +788,21 @@ export class QuizService {
             batchResponses.forEach((response, index) => {
                 const quizTitle = quizTitles[index];
 
-                if (response.status === 200 && response.body.value && response.body.value.length > 0) {
-                    const savedItem = response.body.value[0];
+                if (response.status === 200) {
+                    const responseBody = response.body as { value: IGraphListItem[] };
+                    if (responseBody.value && responseBody.value.length > 0) {
+                        const savedItem = responseBody.value[0];
 
-                    try {
-                        const progressData: ISavedQuizProgress = JSON.parse(savedItem.fields.QuizData);
-                        progressData.id = savedItem.id;
-                        progressMap[quizTitle] = progressData;
-                    } catch (parseError) {
-                        console.error(`Error parsing saved progress data for ${quizTitle}:`, parseError);
+                        try {
+                            const quizDataField = savedItem.fields.QuizData as string;
+                            const progressData: ISavedQuizProgress = JSON.parse(quizDataField);
+                            progressData.id = parseInt(savedItem.id);
+                            progressMap[quizTitle] = progressData;
+                        } catch (parseError) {
+                            console.error(`Error parsing saved progress data for ${quizTitle}:`, parseError);
+                            progressMap[quizTitle] = undefined;
+                        }
+                    } else {
                         progressMap[quizTitle] = undefined;
                     }
                 } else {

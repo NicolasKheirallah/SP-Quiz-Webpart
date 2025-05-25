@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { IQuizProps } from './IQuizProps';
-import { IQuizState, IQuizQuestion, QuestionType, ISavedQuizProgress } from './interfaces';
+import { IQuizState, IQuizQuestion, QuestionType, ISavedQuizProgress, IQuizResult } from './interfaces';
 import { IDetailedQuizResults, IQuestionResult } from './interfaces';
 import QuizProgressTracker from './QuizProgressTracker';
 import { WebPartTitle } from "@pnp/spfx-controls-react/lib/WebPartTitle";
@@ -12,6 +12,8 @@ import ImportQuestionsDialog from './ImportQuestionsDialog';
 import QuestionPreview from './QuestionPreview';
 import { DisplayMode } from '@microsoft/sp-core-library';
 import QuizStartPage from './QuizStartPage';
+import { HttpTriggerService, IHttpTriggerConfig } from './Services/HttpTriggerService';
+import { SPHttpClient } from '@microsoft/sp-http';
 import QuizTimer from './QuizTimer';
 import {
   Spinner,
@@ -35,7 +37,6 @@ import {
 import { Pagination } from '@pnp/spfx-controls-react/lib/pagination';
 import styles from './Quiz.module.scss';
 import QuestionManagement from './QuestionManagement';
-import { SPHttpClient } from '@microsoft/sp-http';
 import CategoryOrderDialog from './CategoryOrderDialog';
 
 // Icons
@@ -292,122 +293,81 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     }
   };
 
+    private saveQuizResults = async (): Promise<boolean> => {
+        try {
+            const spHttpClient = this.props.context.spHttpClient;
+            const webUrl = this.props.context.pageContext.web.absoluteUrl;
+            const currentUser = this.props.context.pageContext.user;
+            const resultsListName = this.props.resultsListName || 'QuizResults';
 
-  // This is the updated saveQuizResults method to use the selected list name
-  private saveQuizResults = async (): Promise<boolean> => {
-    try {
-      const spHttpClient = this.props.context.spHttpClient;
-      const webUrl = this.props.context.pageContext.web.absoluteUrl;
-      const currentUser = this.props.context.pageContext.user;
+            const scorePercentage = this.state.totalPoints > 0
+                ? Math.round((this.state.score / this.state.totalPoints) * 100)
+                : 0;
 
-      // Use the list name from props (selected in property pane)
-      const resultsListName = this.props.resultsListName || 'QuizResults';
+            const questionResults = this.state.questions.map(question => {
+                const isCorrect = this.isQuestionCorrect(question);
+                const points = question.points || 1;
+                const earnedPoints = isCorrect ? points : 0;
+                return {
+                    QuestionId: question.id.toString(),
+                    QuestionTitle: question.title,
+                    QuestionType: question.type,
+                    SelectedChoice: question.selectedChoice
+                        ? (Array.isArray(question.selectedChoice)
+                            ? question.selectedChoice.join(',')
+                            : question.selectedChoice.toString())
+                        : '',
+                    IsCorrect: isCorrect,
+                    EarnedPoints: earnedPoints,
+                    PossiblePoints: points
+                };
+            });
 
-      // Calculate the score percentage properly
-      const scorePercentage = this.state.totalPoints > 0
-        ? Math.round((this.state.score / this.state.totalPoints) * 100)
-        : 0;
+            const resultData = {
+                Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
+                UserName: currentUser.displayName || 'Anonymous',
+                UserId: currentUser.loginName || 'Unknown',
+                UserEmail: currentUser.email || 'Not provided',
+                SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || null,
+                QuizTitle: this.props.title || 'SharePoint Quiz',
+                Score: Number(this.state.score),
+                TotalPoints: Number(this.state.totalPoints),
+                ScorePercentage: Number(scorePercentage),
+                QuestionsAnswered: this.state.answeredQuestions || 0,
+                TotalQuestions: this.state.questions.length || 0,
+                ResultDate: new Date().toISOString(),
+                QuestionDetails: JSON.stringify(questionResults)
+            };
 
-      // Prepare the question results data with proper scoring information
-      const questionResults = this.state.questions.map(question => {
-        // Determine if the question was answered correctly
-        const isCorrect = this.isQuestionCorrect(question);
-        const points = question.points || 1;
-        const earnedPoints = isCorrect ? points : 0;
+            const response = await spHttpClient.post(
+                `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/items`,
+                SPHttpClient.configurations.v1,
+                {
+                    headers: {
+                        'Accept': 'application/json;odata=nometadata',
+                        'Content-type': 'application/json;odata=nometadata',
+                        'odata-version': ''
+                    },
+                    body: JSON.stringify(resultData)
+                }
+            );
 
-        return {
-          QuestionId: question.id.toString(),
-          QuestionTitle: question.title,
-          QuestionType: question.type,
-          SelectedChoice: question.selectedChoice
-            ? (Array.isArray(question.selectedChoice)
-              ? question.selectedChoice.join(',')
-              : question.selectedChoice.toString())
-            : '',
-          IsCorrect: isCorrect,
-          EarnedPoints: earnedPoints,
-          PossiblePoints: points
-        };
-      });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to save quiz results: ${errorText}`);
+            }
 
-      // Ensure score values are all numbers
-      const finalScore = Number(this.state.score);
-      const finalTotalPoints = Number(this.state.totalPoints);
-      const finalScorePercentage = Number(scorePercentage);
-
-      // Double-check that we have valid score values
-      console.log("Saving quiz results with scores:", {
-        Score: finalScore,
-        TotalPoints: finalTotalPoints,
-        ScorePercentage: finalScorePercentage
-      });
-
-      // Prepare detailed result data
-      const resultData = {
-        Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
-        UserName: currentUser.displayName || 'Anonymous',
-        UserEmail: currentUser.email || 'Not provided',
-        UserId: currentUser.loginName || 'Unknown',
-        QuizTitle: this.props.title || 'SharePoint Quiz',
-
-        // Score details - ensuring we have valid numbers
-        Score: finalScore,
-        TotalPoints: finalTotalPoints,
-        ScorePercentage: finalScorePercentage,
-        QuestionsAnswered: this.state.answeredQuestions || 0,
-        TotalQuestions: this.state.questions.length || 0,
-
-        // Timestamp
-        ResultDate: new Date().toISOString(),
-
-        // Detailed question results
-        QuestionDetails: JSON.stringify(questionResults)
-      };
-
-      console.log(`Saving quiz results to list: ${resultsListName}`, resultData);
-
-      // Save result to the selected list
-      try {
-        const response = await spHttpClient.post(
-          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/items`,
-          SPHttpClient.configurations.v1,
-          {
-            headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'Content-type': 'application/json;odata=nometadata',
-              'odata-version': ''
-            },
-            body: JSON.stringify(resultData)
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error response from SharePoint:', errorText);
-          throw new Error(`Failed to save quiz results: ${errorText}`);
+            console.log(`Quiz results saved successfully to ${resultsListName}`);
+            return true;
+        } catch (error) {
+            console.error('Error in saveQuizResults:', error);
+            this.setState({
+                submissionError: error instanceof Error ? error.message : 'An unexpected error occurred while saving results'
+            });
+            return false;
         }
-
-        const responseData = await response.json();
-        console.log(`Quiz results saved successfully to ${resultsListName}:`, responseData);
-
-        return true;
-      } catch (error) {
-        console.error(`Error saving to ${resultsListName} list:`, error);
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error in saveQuizResults:', error);
-
-      // Update state with submission error
-      this.setState({
-        submissionError: error instanceof Error
-          ? error.message
-          : 'An unexpected error occurred while saving results'
-      });
-
-      return false;
     }
-  }
+
 
 
   private getCorrectAnswerText = (question: IQuizQuestion): string | string[] | undefined => {
@@ -1265,7 +1225,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       const spHttpClient = this.props.context.spHttpClient;
       const webUrl = this.props.context.pageContext.web.absoluteUrl;
       const resultsListName = this.props.resultsListName || 'QuizResults';
-
+  
       // Get list fields
       const response = await spHttpClient.get(
         `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
@@ -1277,24 +1237,24 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
           }
         }
       );
-
+  
       if (!response.ok) {
         console.error('Error getting list fields:', response.statusText);
         return false;
       }
-
+  
       const data = await response.json();
       const fields = data.value;
-
+  
       // Define a type for the field
       interface ISharePointField {
         InternalName?: string;
         Title: string;
       }
-
+  
       const fieldTitles = new Set(fields.map((field: ISharePointField) => field.InternalName || field.Title));
-
-      // Required fields for the results list
+  
+      // Required fields for the results list - UPDATED to include SharePoint User ID
       const requiredFields = [
         'Title',          // Default field
         'Score',          // Number field
@@ -1302,21 +1262,21 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         'ScorePercentage',// Number field
         'UserName',       // Text field
         'UserEmail',      // Text field
-        'UserId',         // Text field
+        'UserId',         // Text field (UPN/Login Name)
+        'SharePointUserId', // Number field (SharePoint User ID) - NEW
         'QuizTitle',      // Text field
         'QuestionDetails', // Multi-line text field
         'QuestionsAnswered', // Number field
         'TotalQuestions'  // Number field
       ];
-
+  
       const missingFields = requiredFields.filter((field: string) => !fieldTitles.has(field));
-
+  
       if (missingFields.length > 0) {
         console.warn(`List is missing the following fields: ${missingFields.join(', ')}`);
-
         return false;
       }
-
+  
       return true;
     } catch (error) {
       console.error('Error validating results list:', error);
@@ -1325,151 +1285,148 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   };
 
 
-  /**
-   * Ensures the results list exists with proper columns
-   */
-  private ensureResultsList = async (): Promise<void> => {
+private ensureResultsList = async (): Promise<void> => {
+  try {
+    const spHttpClient = this.props.context.spHttpClient;
+    const webUrl = this.props.context.pageContext.web.absoluteUrl;
+    const resultsListName = this.props.resultsListName || 'QuizResults';
+
+    // Check if list exists
     try {
-      const spHttpClient = this.props.context.spHttpClient;
-      const webUrl = this.props.context.pageContext.web.absoluteUrl;
-      const resultsListName = this.props.resultsListName || 'QuizResults';
-
-      // Check if list exists
-      try {
-        const listResponse = await spHttpClient.get(
-          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')`,
-          SPHttpClient.configurations.v1,
-          {
-            headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'odata-version': ''
-            }
-          }
-        );
-
-        if (listResponse.ok) {
-          // List exists, validate fields
-          const isValid = await this.validateResultsList();
-          if (!isValid) {
-            console.warn(`List '${resultsListName}' exists but may be missing required fields.`);
-          }
-          return;
-        }
-      } catch (error) {
-        console.log(`List '${resultsListName}' does not exist, creating it...`, error);
-      }
-
-      // Create the list
-      const createListResponse = await spHttpClient.post(
-        `${webUrl}/_api/web/lists`,
+      const listResponse = await spHttpClient.get(
+        `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')`,
         SPHttpClient.configurations.v1,
         {
           headers: {
             'Accept': 'application/json;odata=nometadata',
-            'Content-type': 'application/json;odata=nometadata',
             'odata-version': ''
-          },
-          body: JSON.stringify({
-            Title: resultsListName,
-            BaseTemplate: 100, // Custom list
-            ContentTypesEnabled: false,
-            Description: 'Stores quiz results for the Quiz Web Part'
-          })
+          }
         }
       );
 
-      if (!createListResponse.ok) {
-        const errorText = await createListResponse.text();
-        console.error(`Error creating list '${resultsListName}':`, errorText);
+      if (listResponse.ok) {
+        // List exists, validate fields
+        const isValid = await this.validateResultsList();
+        if (!isValid) {
+          console.warn(`List '${resultsListName}' exists but may be missing required fields.`);
+        }
         return;
       }
-
-      // Define the interface for field type
-      interface IFieldDefinition {
-        Title: string;
-        FieldTypeKind: number;
-      }
-
-      // List created, now add custom fields
-      const createFields: IFieldDefinition[] = [
-        { Title: 'Score', FieldTypeKind: 9 }, // Number field
-        { Title: 'TotalPoints', FieldTypeKind: 9 }, // Number field
-        { Title: 'ScorePercentage', FieldTypeKind: 9 }, // Number field
-        { Title: 'UserName', FieldTypeKind: 2 }, // Text field
-        { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
-        { Title: 'UserId', FieldTypeKind: 2 }, // Text field
-        { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
-        { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
-        { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
-        { Title: 'TotalQuestions', FieldTypeKind: 9 }, // Number field
-        { Title: 'ResultDate', FieldTypeKind: 4 } // Date/Time field
-      ];
-
-      // Create each field sequentially
-      for (const field of createFields) {
-        try {
-          await spHttpClient.post(
-            `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
-            SPHttpClient.configurations.v1,
-            {
-              headers: {
-                'Accept': 'application/json;odata=nometadata',
-                'Content-type': 'application/json;odata=nometadata',
-                'odata-version': ''
-              },
-              body: JSON.stringify({
-                Title: field.Title,
-                FieldTypeKind: field.FieldTypeKind
-              })
-            }
-          );
-        } catch (error) {
-          console.error(`Error creating field '${field.Title}':`, error);
-        }
-      }
-
-      console.log(`List '${resultsListName}' created with all required fields.`);
     } catch (error) {
-      console.error('Error ensuring results list:', error);
+      console.log(`List '${resultsListName}' does not exist, creating it...`, error);
     }
-  };
+
+    // Create the list
+    const createListResponse = await spHttpClient.post(
+      `${webUrl}/_api/web/lists`,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata',
+          'odata-version': ''
+        },
+        body: JSON.stringify({
+          Title: resultsListName,
+          BaseTemplate: 100, // Custom list
+          ContentTypesEnabled: false,
+          Description: 'Stores quiz results for the Quiz Web Part'
+        })
+      }
+    );
+
+    if (!createListResponse.ok) {
+      const errorText = await createListResponse.text();
+      console.error(`Error creating list '${resultsListName}':`, errorText);
+      return;
+    }
+
+    // Define the interface for field type
+    interface IFieldDefinition {
+      Title: string;
+      FieldTypeKind: number;
+    }
+
+    // List created, now add custom fields - UPDATED to include SharePoint User ID
+    const createFields: IFieldDefinition[] = [
+      { Title: 'Score', FieldTypeKind: 9 }, // Number field
+      { Title: 'TotalPoints', FieldTypeKind: 9 }, // Number field
+      { Title: 'ScorePercentage', FieldTypeKind: 9 }, // Number field
+      { Title: 'UserName', FieldTypeKind: 2 }, // Text field
+      { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
+      { Title: 'UserId', FieldTypeKind: 2 }, // Text field (UPN/Login Name)
+      { Title: 'SharePointUserId', FieldTypeKind: 9 }, // Number field (SharePoint User ID)
+      { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
+      { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
+      { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
+      { Title: 'TotalQuestions', FieldTypeKind: 9 }, // Number field
+      { Title: 'ResultDate', FieldTypeKind: 4 } // Date/Time field
+    ];
+
+    // Create each field sequentially
+    for (const field of createFields) {
+      try {
+        await spHttpClient.post(
+          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'Content-type': 'application/json;odata=nometadata',
+              'odata-version': ''
+            },
+            body: JSON.stringify({
+              Title: field.Title,
+              FieldTypeKind: field.FieldTypeKind
+            })
+          }
+        );
+      } catch (error) {
+        console.error(`Error creating field '${field.Title}':`, error);
+      }
+    }
+
+    console.log(`List '${resultsListName}' created with all required fields.`);
+  } catch (error) {
+    console.error('Error ensuring results list:', error);
+  }
+};
 
 
 
-  // Replace only the handleSubmitQuiz method in Quiz.tsx
   private handleSubmitQuiz = async (): Promise<void> => {
     this.setState({
       isSubmitting: true,
       submissionError: ''
     });
-
+  
     try {
       // Calculate points for ALL questions
       let totalQuizPoints = 0;
       let earnedPoints = 0;
       const allQuestions = this.state.questions;
       let correctlyAnsweredQuestions = 0;
-
+  
       // Calculate total possible points and earned points
       allQuestions.forEach(question => {
         // Get points for this question (default to 1 if not specified)
         const questionPoints = question.points || 1;
         totalQuizPoints += questionPoints;
-
+  
         // Only add points if the question was answered and correct
         if (question.selectedChoice !== undefined && this.isQuestionCorrect(question)) {
           earnedPoints += questionPoints;
           correctlyAnsweredQuestions++; // Track correctly answered questions
         }
       });
-
+  
       console.log("Quiz submission calculated results:", {
         totalQuizPoints,
         earnedPoints,
         correctlyAnsweredQuestions,
         percentage: Math.round((earnedPoints / totalQuizPoints) * 100)
       });
-
+  
       // Make sure to update state BEFORE saving the results
       // This ensures the correct values are available when saveQuizResults is called
       this.setState({
@@ -1482,19 +1439,23 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         try {
           // Save results to SharePoint list after state is updated
           const savedSuccessfully = await this.saveQuizResults();
-
+  
           // Prepare detailed results with comprehensive metrics
           const detailedResults = this.prepareDetailedResults(
             allQuestions,
             earnedPoints,
             totalQuizPoints
           );
-
+  
+          // NEW: Check if HTTP trigger should be sent
+          const scorePercentage = Math.round((earnedPoints / totalQuizPoints) * 100);
+          await this.checkAndSendHttpTrigger(scorePercentage, detailedResults);
+  
           // Delete any existing saved progress
           if (this.state.savedProgressId) {
             await this.deleteSavedProgress(this.state.savedProgressId);
           }
-
+  
           // Update state with results
           this.setState({
             showResults: true,
@@ -1515,12 +1476,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       });
     } catch (error) {
       console.error('Error submitting quiz:', error);
-
+  
       this.setState({
         submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
         isSubmitting: false
       });
-
+  
       // Optional: Delete saved progress even if submission fails
       if (this.state.savedProgressId) {
         try {
@@ -1531,6 +1492,74 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       }
     }
   };
+  private checkAndSendHttpTrigger = async (
+    scorePercentage: number,
+    detailedResults: IDetailedQuizResults
+  ): Promise<void> => {
+    try {
+      // Check if HTTP trigger is enabled
+      if (!this.props.enableHttpTrigger || !this.props.httpTriggerUrl) {
+        return;
+      }
+
+      const threshold = this.props.httpTriggerScoreThreshold || 80;
+
+      // Only send trigger if score meets threshold
+      if (scorePercentage < threshold) {
+        console.log(`Score ${scorePercentage}% is below HTTP trigger threshold ${threshold}%`);
+        return;
+      }
+
+      console.log(`Score ${scorePercentage}% meets HTTP trigger threshold ${threshold}%. Preparing to send trigger...`);
+
+      // Create HTTP trigger service
+      const httpTriggerService = new HttpTriggerService(this.props.context);
+
+      // Prepare trigger configuration
+      const triggerConfig: IHttpTriggerConfig = {
+        url: this.props.httpTriggerUrl,
+        method: this.props.httpTriggerMethod || 'POST',
+        timeout: this.props.httpTriggerTimeout || 30,
+        includeUserData: this.props.httpTriggerIncludeUserData !== false,
+        customHeaders: this.props.httpTriggerCustomHeaders
+      };
+
+      // Prepare quiz result data for trigger
+      const currentUser = this.props.context.pageContext.user;
+      const quizResult: IQuizResult = {
+        Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
+        UserName: currentUser.displayName || 'Anonymous',
+        UserId: currentUser.loginName || 'Unknown',
+        UserEmail: currentUser.email || 'Not provided',
+        SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || undefined,
+        QuizTitle: this.props.title || 'SharePoint Quiz',
+        Score: this.state.score,
+        TotalPoints: this.state.totalPoints,
+        ScorePercentage: scorePercentage,
+        QuestionsAnswered: this.state.answeredQuestions,
+        TotalQuestions: this.state.totalQuestions,
+        QuestionDetails: JSON.stringify(detailedResults.questionResults),
+        ResultDate: new Date().toISOString()
+      };
+
+      // Send HTTP trigger with simplified payload (no quiz data)
+      const triggerSent = await httpTriggerService.sendHighScoreTrigger(
+        quizResult,
+        triggerConfig,
+        threshold
+      );
+
+      if (triggerSent) {
+        console.log('HTTP trigger sent successfully for high score achievement');
+      } else {
+        console.warn('Failed to send HTTP trigger for high score achievement');
+      }
+
+    } catch (error) {
+      console.error('Error in checkAndSendHttpTrigger:', error);
+    }
+  };
+  
 
   private handleRetakeQuiz = (): void => {
     const resetQuestions = this.state.originalQuestions.map(q => ({

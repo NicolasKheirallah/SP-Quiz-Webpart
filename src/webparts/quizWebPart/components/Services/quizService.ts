@@ -2,6 +2,23 @@ import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IQuizResult, ISavedQuizProgress } from '../interfaces';
 
+// Define interfaces for SharePoint API responses
+interface ISharePointListResponse {
+  value: ISharePointItem[];
+}
+
+interface ISharePointItem {
+  Id: number;
+  Title?: string;
+  QuizData?: string;
+  [key: string]: unknown;
+}
+
+interface ISharePointItemResponse {
+  Id: number;
+  [key: string]: unknown;
+}
+
 /**
  * Service class for handling quiz data operations with SharePoint REST API
  */
@@ -142,7 +159,7 @@ export class QuizService {
    * @param resultData A JSON-serializable object containing the quiz result data.
    * @returns A promise resolving to the response JSON.
    */
-  public async saveQuizResults(quizResult: IQuizResult): Promise<any> {
+  public async saveQuizResults(quizResult: IQuizResult): Promise<ISharePointItemResponse> {
     const webUrl = this.context.pageContext.web.absoluteUrl;
     const resultsListName = 'QuizResults';
     
@@ -165,7 +182,7 @@ export class QuizService {
         throw new Error(`Failed to save quiz results: ${errorText}`);
       }
       
-      return await response.json();
+      return await response.json() as ISharePointItemResponse;
     } catch (error) {
       console.error(`Error saving quiz results:`, error);
       throw error;
@@ -225,13 +242,13 @@ export class QuizService {
       );
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json() as Record<string, unknown>;
         throw new Error(`Failed to save progress: ${JSON.stringify(errorData)}`);
       }
       
       // If this is a new record, get the ID
       if (!savedProgressId) {
-        const responseData = await response.json();
+        const responseData = await response.json() as ISharePointItemResponse;
         return responseData.Id;
       }
     } catch (error) {
@@ -272,14 +289,14 @@ export class QuizService {
         throw new Error(`Error response when retrieving saved progress: ${errorText}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as ISharePointListResponse;
       
       if (data.value && data.value.length > 0) {
         const savedItem = data.value[0];
         
         // Parse the saved progress data
         try {
-          const progressData: ISavedQuizProgress = JSON.parse(savedItem.QuizData);
+          const progressData: ISavedQuizProgress = JSON.parse(savedItem.QuizData || '{}');
           // Add the item ID so we can update it later
           progressData.id = savedItem.Id;
           return progressData;
@@ -360,7 +377,7 @@ export class QuizService {
    * @param userLoginName The user's login name
    * @returns Promise resolving to the user's quiz results
    */
-  public async getQuizResults(userLoginName: string): Promise<any[]> {
+  public async getQuizResults(userLoginName: string): Promise<ISharePointItem[]> {
     const webUrl = this.context.pageContext.web.absoluteUrl;
     const resultsListName = 'QuizResults';
     
@@ -383,7 +400,7 @@ export class QuizService {
         throw new Error(`Error retrieving quiz results: ${errorText}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as ISharePointListResponse;
       return data.value || [];
     } catch (error) {
       console.error('Error getting quiz results:', error);

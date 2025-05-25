@@ -23,6 +23,14 @@ export interface IQuizProps {
   enableQuestionTimeLimit: boolean;
   defaultQuestionTimeLimit: number;
   questions: IQuizQuestion[];
-  resultsListName: string; // Added property for the list name
+  resultsListName: string;
   updateQuestions: (questions: IQuizQuestion[]) => void;
+  enableHttpTrigger?: boolean;
+  httpTriggerUrl?: string;
+  httpTriggerScoreThreshold?: number;
+  httpTriggerMethod?: string;
+  httpTriggerIncludeUserData?: boolean;
+  httpTriggerIncludeQuizData?: boolean;
+  httpTriggerCustomHeaders?: string;
+  httpTriggerTimeout?: number;
 }

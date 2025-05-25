@@ -135,7 +135,6 @@ export interface IQuizProgress {
   percentage: number;
   remainingTime?: number;  // For timed quizzes
 }
-
 export interface IQuizResultsProps {
   score: number;
   totalQuestions: number;
@@ -152,6 +151,34 @@ export interface IQuizResultsProps {
     success?: string;
   };
   detailedResults?: IDetailedQuizResults;
+}
+export interface IQuizWebPartProps {
+  title: string;
+  questionsPerPage: number;
+  successMessage: string;
+  excellentScoreMessage: string;
+  goodScoreMessage: string;
+  averageScoreMessage: string;
+  poorScoreMessage: string;
+  errorMessage: string;
+  resultsSavedMessage: string;
+  showProgressIndicator: boolean;
+  randomizeQuestions: boolean;
+  randomizeAnswers: boolean;
+  questions: IQuizQuestion[];
+  passingScore: number;
+  timeLimit: number;
+  enableQuestionTimeLimit: boolean;
+  defaultQuestionTimeLimit: number;
+  resultsListName: string;
+  enableHttpTrigger: boolean;
+  httpTriggerUrl: string;
+  httpTriggerScoreThreshold: number;
+  httpTriggerMethod: string; // GET, POST, PUT, etc.
+  httpTriggerIncludeUserData: boolean;
+  httpTriggerIncludeQuizData: boolean;
+  httpTriggerCustomHeaders: string; // JSON string of custom headers
+  httpTriggerTimeout: number; // Timeout in seconds
 }
 
 
@@ -236,18 +263,6 @@ export interface IMatchingPair {
   userSelectedRightId?: string;
 }
 
-export interface ISavedQuizProgress {
-  id?: number;
-  userId: string;
-  userName: string;
-  quizTitle: string;
-  questions: IQuizQuestion[];
-  lastSaved: string;
-  timeRemaining?: number;
-  currentPage: number;
-  currentCategory: string;
-}
-
 export interface IQuizStartPageProps {
   title: string;
   onStartQuiz: () => void;
@@ -265,8 +280,9 @@ export interface IQuizStartPageProps {
 export interface IQuizResult {
   Title: string;
   UserName: string;
-  UserId: string;
+  UserId: string; 
   UserEmail: string;
+  SharePointUserId?: number;
   QuizTitle: string;
   Score: number;
   TotalPoints: number;
@@ -276,6 +292,7 @@ export interface IQuizResult {
   QuestionDetails: string;
   ResultDate: string;
 }
+
 
 /**
  * Update ISavedQuizProgress interface with an optional id field

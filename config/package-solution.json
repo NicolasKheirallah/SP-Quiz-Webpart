@@ -3,7 +3,7 @@
   "solution": {
     "name": "sp-quiz-webpart-client-side-solution",
     "id": "d4c9a709-eee3-4b8a-9773-d6faf16d6f7c",
-    "version": "1.6.0.0",
+    "version": "1.7.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
