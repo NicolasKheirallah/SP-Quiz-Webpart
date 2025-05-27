@@ -105,6 +105,35 @@ const QuestionPreview: React.FC<IQuestionPreviewProps> = (props) => {
             </div>
           </Stack>
         );
+
+      case QuestionType.Matching:
+        return (
+          <Stack tokens={stackTokens}>
+            <Label>Matching Pairs:</Label>
+            {question.matchingPairs && question.matchingPairs.length > 0 ? (
+              <Stack tokens={stackTokens}>
+                {question.matchingPairs.map((pair, index) => (
+                  <div key={pair.id} className={`${styles.statusBar} ${styles.success}`}>
+                    <Stack horizontal tokens={stackTokens} verticalAlign="center">
+                      <Icon iconName="CheckMark" style={{ color: 'green', marginRight: '8px' }} />
+                      <Text>{pair.leftItem} → {pair.rightItem}</Text>
+                    </Stack>
+                  </div>
+                ))}
+              </Stack>
+            ) : (
+              <MessageBar messageBarType={MessageBarType.warning}>
+                No matching pairs configured for this question.
+              </MessageBar>
+            )}
+            <MessageBar
+              messageBarType={MessageBarType.info}
+              styles={{ root: { marginTop: '8px' } }}
+            >
+              Students will need to match each left item with its corresponding right item.
+            </MessageBar>
+          </Stack>
+        );
         
       default:
         return (

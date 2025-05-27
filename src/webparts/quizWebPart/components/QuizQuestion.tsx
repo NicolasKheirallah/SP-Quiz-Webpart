@@ -247,7 +247,8 @@ const QuizQuestion: React.FC<IQuizQuestionProps> = (props) => {
         </MessageBar>
       )}
 
-      {question.description && (
+      {/* Only display description if it exists and is not empty */}
+      {question.description && question.description.trim() && (
         <div className={styles.questionDescription}>
           <RichText 
             value={question.description}

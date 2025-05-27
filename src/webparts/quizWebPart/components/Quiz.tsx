@@ -143,15 +143,15 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         ...q,
         selectedChoice: undefined
       }));
-      this.setState({ 
+      this.setState({
         questions: resetQuestions,
         answeredQuestions: 0
       });
     }
-    
+
     // Apply randomization after resetting answers
     this.randomizeQuestionsIfNeeded();
-    
+
     // Only check for saved progress after resetting answers
     this.checkForSavedProgress().catch((error) =>
       console.error("Error in checkForSavedProgress:", error)
@@ -184,15 +184,15 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   private handleOpenCategoryOrderDialog = (): void => {
     this.setState({ showCategoryOrderDialog: true });
   }
-  
+
   private handleCloseCategoryOrderDialog = (): void => {
     this.setState({ showCategoryOrderDialog: false });
   }
-  
+
   private handleUpdateCategories = (newCategories: string[]): void => {
     this.setState({ categories: newCategories });
   }
-  
+
   private handleOpenEditQuestionsDialog = (): void => {
     this.setState({ showEditQuestionsDialog: true });
   }
@@ -293,80 +293,82 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     }
   };
 
-    private saveQuizResults = async (): Promise<boolean> => {
-        try {
-            const spHttpClient = this.props.context.spHttpClient;
-            const webUrl = this.props.context.pageContext.web.absoluteUrl;
-            const currentUser = this.props.context.pageContext.user;
-            const resultsListName = this.props.resultsListName || 'QuizResults';
+  private saveQuizResults = async (): Promise<boolean> => {
+    try {
+      const spHttpClient = this.props.context.spHttpClient;
+      const webUrl = this.props.context.pageContext.web.absoluteUrl;
+      const currentUser = this.props.context.pageContext.user;
+      const resultsListName = this.props.resultsListName || 'QuizResults';
 
-            const scorePercentage = this.state.totalPoints > 0
-                ? Math.round((this.state.score / this.state.totalPoints) * 100)
-                : 0;
+      const scorePercentage = this.state.totalPoints > 0
+        ? Math.round((this.state.score / this.state.totalPoints) * 100)
+        : 0;
 
-            const questionResults = this.state.questions.map(question => {
-                const isCorrect = this.isQuestionCorrect(question);
-                const points = question.points || 1;
-                const earnedPoints = isCorrect ? points : 0;
-                return {
-                    QuestionId: question.id.toString(),
-                    QuestionTitle: question.title,
-                    QuestionType: question.type,
-                    SelectedChoice: question.selectedChoice
-                        ? (Array.isArray(question.selectedChoice)
-                            ? question.selectedChoice.join(',')
-                            : question.selectedChoice.toString())
-                        : '',
-                    IsCorrect: isCorrect,
-                    EarnedPoints: earnedPoints,
-                    PossiblePoints: points
-                };
-            });
+      const questionResults = this.state.questions.map(question => {
+        const isCorrect = this.isQuestionCorrect(question);
+        const points = question.points || 1;
+        const earnedPoints = isCorrect ? points : 0;
+        return {
+          QuestionId: question.id.toString(),
+          QuestionTitle: question.title,
+          QuestionType: question.type,
+          SelectedChoice: question.selectedChoice
+            ? (Array.isArray(question.selectedChoice)
+              ? question.selectedChoice.join(',')
+              : question.selectedChoice.toString())
+            : '',
+          IsCorrect: isCorrect,
+          EarnedPoints: earnedPoints,
+          PossiblePoints: points
+        };
+      });
 
-            const resultData = {
-                Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
-                UserName: currentUser.displayName || 'Anonymous',
-                UserId: currentUser.loginName || 'Unknown',
-                UserEmail: currentUser.email || 'Not provided',
-                SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || null,
-                QuizTitle: this.props.title || 'SharePoint Quiz',
-                Score: Number(this.state.score),
-                TotalPoints: Number(this.state.totalPoints),
-                ScorePercentage: Number(scorePercentage),
-                QuestionsAnswered: this.state.answeredQuestions || 0,
-                TotalQuestions: this.state.questions.length || 0,
-                ResultDate: new Date().toISOString(),
-                QuestionDetails: JSON.stringify(questionResults)
-            };
+      const resultData = {
+        Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
+        UserName: currentUser.displayName || 'Anonymous',
+        // FIXED: Use Entra ID instead of UPN/Email for UserId
+        UserId: this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
+        UserEmail: currentUser.email || 'Not provided',
+        SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || null,
+        QuizTitle: this.props.title || 'SharePoint Quiz',
+        Score: Number(this.state.score),
+        TotalPoints: Number(this.state.totalPoints),
+        ScorePercentage: Number(scorePercentage),
+        QuestionsAnswered: this.state.answeredQuestions || 0,
+        TotalQuestions: this.state.questions.length || 0,
+        ResultDate: new Date().toISOString(),
+        QuestionDetails: JSON.stringify(questionResults)
+      };
 
-            const response = await spHttpClient.post(
-                `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/items`,
-                SPHttpClient.configurations.v1,
-                {
-                    headers: {
-                        'Accept': 'application/json;odata=nometadata',
-                        'Content-type': 'application/json;odata=nometadata',
-                        'odata-version': ''
-                    },
-                    body: JSON.stringify(resultData)
-                }
-            );
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to save quiz results: ${errorText}`);
-            }
-
-            console.log(`Quiz results saved successfully to ${resultsListName}`);
-            return true;
-        } catch (error) {
-            console.error('Error in saveQuizResults:', error);
-            this.setState({
-                submissionError: error instanceof Error ? error.message : 'An unexpected error occurred while saving results'
-            });
-            return false;
+      const response = await spHttpClient.post(
+        `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/items`,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'Content-type': 'application/json;odata=nometadata',
+            'odata-version': ''
+          },
+          body: JSON.stringify(resultData)
         }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to save quiz results: ${errorText}`);
+      }
+
+      console.log(`Quiz results saved successfully to ${resultsListName}`);
+      return true;
+    } catch (error) {
+      console.error('Error in saveQuizResults:', error);
+      this.setState({
+        submissionError: error instanceof Error ? error.message : 'An unexpected error occurred while saving results'
+      });
+      return false;
     }
+  }
+
 
 
 
@@ -396,71 +398,6 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
 
 
 
-  private checkForSavedProgress = async (): Promise<void> => {
-    try {
-      // Only check for saved progress in read mode
-      if (this.props.displayMode !== DisplayMode.Read) return;
-
-      console.log("Checking for saved progress...");
-      const { context } = this.props;
-      const spHttpClient = context.spHttpClient;
-      const webUrl = context.pageContext.web.absoluteUrl;
-      const currentUser = context.pageContext.user;
-
-      // Use the same list as quiz results or a dedicated progress list
-      const progressListName = "QuizProgress";
-
-      // Query for saved progress for this user and quiz
-      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUser.loginName}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
-
-      console.log(`Checking saved progress at endpoint: ${endpoint}`);
-
-      try {
-        const response = await spHttpClient.get(
-          endpoint,
-          SPHttpClient.configurations.v1,
-          {
-            headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'odata-version': ''
-            }
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error response when checking for saved progress: ${errorText}`);
-          return;
-        }
-
-        const data = await response.json();
-        console.log("Saved progress check response:", data);
-
-        if (data.value && data.value.length > 0) {
-          // Found saved progress
-          const savedProgress = data.value[0];
-          console.log("Found saved progress:", savedProgress);
-
-          this.setState({
-            hasSavedProgress: true,
-            savedProgressId: savedProgress.Id
-          });
-
-          // Only show resume dialog in read mode and on start page
-          if (this.state.showStartPage) {
-            this.setState({ showResumeDialog: true });
-          }
-        } else {
-          console.log("No saved progress found");
-        }
-      } catch (error) {
-        console.error('Error in API call when checking for saved progress:', error);
-      }
-    } catch (error) {
-      console.error('Error checking for saved progress:', error);
-    }
-  };
-
   private saveQuizProgress = async (): Promise<boolean> => {
     try {
       this.setState({ isSubmitting: true });
@@ -473,9 +410,9 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       // Use a dedicated list for progress
       const progressListName = "QuizProgress";
 
-      // Prepare progress data
+      // Prepare progress data - FIXED: Use Entra ID for userId
       const progressData: ISavedQuizProgress = {
-        userId: currentUser.loginName || 'Unknown',
+        userId: context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
         userName: currentUser.displayName || 'Anonymous',
         quizTitle: this.props.title || 'SharePoint Quiz',
         questions: this.state.questions,
@@ -484,6 +421,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         currentPage: this.state.currentPage,
         currentCategory: this.state.currentCategory
       };
+
       // Convert to SharePoint item format
       const spItemData = {
         Title: `${this.props.title} - ${currentUser.displayName} - In Progress`,
@@ -586,6 +524,72 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       alert(`Failed to save quiz progress: ${errorMessage}`);
 
       return false;
+    }
+  };
+
+  private checkForSavedProgress = async (): Promise<void> => {
+    try {
+      // Only check for saved progress in read mode
+      if (this.props.displayMode !== DisplayMode.Read) return;
+
+      console.log("Checking for saved progress...");
+      const { context } = this.props;
+      const spHttpClient = context.spHttpClient;
+      const webUrl = context.pageContext.web.absoluteUrl;
+      // FIXED: Use Entra ID instead of UPN for filtering
+      const currentUserId = context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown';
+
+      // Use the same list as quiz results or a dedicated progress list
+      const progressListName = "QuizProgress";
+
+      // Query for saved progress for this user and quiz - using Entra ID
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUserId}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
+
+      console.log(`Checking saved progress at endpoint: ${endpoint}`);
+
+      try {
+        const response = await spHttpClient.get(
+          endpoint,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'odata-version': ''
+            }
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error response when checking for saved progress: ${errorText}`);
+          return;
+        }
+
+        const data = await response.json();
+        console.log("Saved progress check response:", data);
+
+        if (data.value && data.value.length > 0) {
+          // Found saved progress
+          const savedProgress = data.value[0];
+          console.log("Found saved progress:", savedProgress);
+
+          this.setState({
+            hasSavedProgress: true,
+            savedProgressId: savedProgress.Id
+          });
+
+          // Only show resume dialog in read mode and on start page
+          if (this.state.showStartPage) {
+            this.setState({ showResumeDialog: true });
+          }
+        } else {
+          console.log("No saved progress found");
+        }
+      } catch (error) {
+        console.error('Error in API call when checking for saved progress:', error);
+      }
+    } catch (error) {
+      console.error('Error checking for saved progress:', error);
     }
   };
 
@@ -1064,7 +1068,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       const webPartContainer = document.querySelector(".quiz") ||
         document.querySelector("[data-automation-id='webPartHeader']") ||
         document.querySelector("[data-sp-feature-tag='SharePointWebPartsFull']");
-  
+
       if (webPartContainer) {
         const yOffset = -50; // Adjust offset as needed for fixed headers
         const y = webPartContainer.getBoundingClientRect().top + window.pageYOffset + yOffset;
@@ -1081,7 +1085,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       }
     });
   };
-  
+
 
   // Optional improvement to maintain category sorting when categories are updated
   private updateCategories(questions: IQuizQuestion[]): string[] {
@@ -1225,7 +1229,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       const spHttpClient = this.props.context.spHttpClient;
       const webUrl = this.props.context.pageContext.web.absoluteUrl;
       const resultsListName = this.props.resultsListName || 'QuizResults';
-  
+
       // Get list fields
       const response = await spHttpClient.get(
         `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
@@ -1237,23 +1241,23 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
           }
         }
       );
-  
+
       if (!response.ok) {
         console.error('Error getting list fields:', response.statusText);
         return false;
       }
-  
+
       const data = await response.json();
       const fields = data.value;
-  
+
       // Define a type for the field
       interface ISharePointField {
         InternalName?: string;
         Title: string;
       }
-  
+
       const fieldTitles = new Set(fields.map((field: ISharePointField) => field.InternalName || field.Title));
-  
+
       // Required fields for the results list - UPDATED to include SharePoint User ID
       const requiredFields = [
         'Title',          // Default field
@@ -1269,14 +1273,14 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         'QuestionsAnswered', // Number field
         'TotalQuestions'  // Number field
       ];
-  
+
       const missingFields = requiredFields.filter((field: string) => !fieldTitles.has(field));
-  
+
       if (missingFields.length > 0) {
         console.warn(`List is missing the following fields: ${missingFields.join(', ')}`);
         return false;
       }
-  
+
       return true;
     } catch (error) {
       console.error('Error validating results list:', error);
@@ -1285,112 +1289,112 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
   };
 
 
-private ensureResultsList = async (): Promise<void> => {
-  try {
-    const spHttpClient = this.props.context.spHttpClient;
-    const webUrl = this.props.context.pageContext.web.absoluteUrl;
-    const resultsListName = this.props.resultsListName || 'QuizResults';
-
-    // Check if list exists
+  private ensureResultsList = async (): Promise<void> => {
     try {
-      const listResponse = await spHttpClient.get(
-        `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')`,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=nometadata',
-            'odata-version': ''
-          }
-        }
-      );
+      const spHttpClient = this.props.context.spHttpClient;
+      const webUrl = this.props.context.pageContext.web.absoluteUrl;
+      const resultsListName = this.props.resultsListName || 'QuizResults';
 
-      if (listResponse.ok) {
-        // List exists, validate fields
-        const isValid = await this.validateResultsList();
-        if (!isValid) {
-          console.warn(`List '${resultsListName}' exists but may be missing required fields.`);
-        }
-        return;
-      }
-    } catch (error) {
-      console.log(`List '${resultsListName}' does not exist, creating it...`, error);
-    }
-
-    // Create the list
-    const createListResponse = await spHttpClient.post(
-      `${webUrl}/_api/web/lists`,
-      SPHttpClient.configurations.v1,
-      {
-        headers: {
-          'Accept': 'application/json;odata=nometadata',
-          'Content-type': 'application/json;odata=nometadata',
-          'odata-version': ''
-        },
-        body: JSON.stringify({
-          Title: resultsListName,
-          BaseTemplate: 100, // Custom list
-          ContentTypesEnabled: false,
-          Description: 'Stores quiz results for the Quiz Web Part'
-        })
-      }
-    );
-
-    if (!createListResponse.ok) {
-      const errorText = await createListResponse.text();
-      console.error(`Error creating list '${resultsListName}':`, errorText);
-      return;
-    }
-
-    // Define the interface for field type
-    interface IFieldDefinition {
-      Title: string;
-      FieldTypeKind: number;
-    }
-
-    // List created, now add custom fields - UPDATED to include SharePoint User ID
-    const createFields: IFieldDefinition[] = [
-      { Title: 'Score', FieldTypeKind: 9 }, // Number field
-      { Title: 'TotalPoints', FieldTypeKind: 9 }, // Number field
-      { Title: 'ScorePercentage', FieldTypeKind: 9 }, // Number field
-      { Title: 'UserName', FieldTypeKind: 2 }, // Text field
-      { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
-      { Title: 'UserId', FieldTypeKind: 2 }, // Text field (UPN/Login Name)
-      { Title: 'SharePointUserId', FieldTypeKind: 9 }, // Number field (SharePoint User ID)
-      { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
-      { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
-      { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
-      { Title: 'TotalQuestions', FieldTypeKind: 9 }, // Number field
-      { Title: 'ResultDate', FieldTypeKind: 4 } // Date/Time field
-    ];
-
-    // Create each field sequentially
-    for (const field of createFields) {
+      // Check if list exists
       try {
-        await spHttpClient.post(
-          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
+        const listResponse = await spHttpClient.get(
+          `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')`,
           SPHttpClient.configurations.v1,
           {
             headers: {
               'Accept': 'application/json;odata=nometadata',
-              'Content-type': 'application/json;odata=nometadata',
               'odata-version': ''
-            },
-            body: JSON.stringify({
-              Title: field.Title,
-              FieldTypeKind: field.FieldTypeKind
-            })
+            }
           }
         );
-      } catch (error) {
-        console.error(`Error creating field '${field.Title}':`, error);
-      }
-    }
 
-    console.log(`List '${resultsListName}' created with all required fields.`);
-  } catch (error) {
-    console.error('Error ensuring results list:', error);
-  }
-};
+        if (listResponse.ok) {
+          // List exists, validate fields
+          const isValid = await this.validateResultsList();
+          if (!isValid) {
+            console.warn(`List '${resultsListName}' exists but may be missing required fields.`);
+          }
+          return;
+        }
+      } catch (error) {
+        console.log(`List '${resultsListName}' does not exist, creating it...`, error);
+      }
+
+      // Create the list
+      const createListResponse = await spHttpClient.post(
+        `${webUrl}/_api/web/lists`,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'Content-type': 'application/json;odata=nometadata',
+            'odata-version': ''
+          },
+          body: JSON.stringify({
+            Title: resultsListName,
+            BaseTemplate: 100, // Custom list
+            ContentTypesEnabled: false,
+            Description: 'Stores quiz results for the Quiz Web Part'
+          })
+        }
+      );
+
+      if (!createListResponse.ok) {
+        const errorText = await createListResponse.text();
+        console.error(`Error creating list '${resultsListName}':`, errorText);
+        return;
+      }
+
+      // Define the interface for field type
+      interface IFieldDefinition {
+        Title: string;
+        FieldTypeKind: number;
+      }
+
+      // List created, now add custom fields - UPDATED to include SharePoint User ID
+      const createFields: IFieldDefinition[] = [
+        { Title: 'Score', FieldTypeKind: 9 }, // Number field
+        { Title: 'TotalPoints', FieldTypeKind: 9 }, // Number field
+        { Title: 'ScorePercentage', FieldTypeKind: 9 }, // Number field
+        { Title: 'UserName', FieldTypeKind: 2 }, // Text field
+        { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
+        { Title: 'UserId', FieldTypeKind: 2 }, // Text field (UPN/Login Name)
+        { Title: 'SharePointUserId', FieldTypeKind: 9 }, // Number field (SharePoint User ID)
+        { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
+        { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
+        { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
+        { Title: 'TotalQuestions', FieldTypeKind: 9 }, // Number field
+        { Title: 'ResultDate', FieldTypeKind: 4 } // Date/Time field
+      ];
+
+      // Create each field sequentially
+      for (const field of createFields) {
+        try {
+          await spHttpClient.post(
+            `${webUrl}/_api/web/lists/getbytitle('${resultsListName}')/fields`,
+            SPHttpClient.configurations.v1,
+            {
+              headers: {
+                'Accept': 'application/json;odata=nometadata',
+                'Content-type': 'application/json;odata=nometadata',
+                'odata-version': ''
+              },
+              body: JSON.stringify({
+                Title: field.Title,
+                FieldTypeKind: field.FieldTypeKind
+              })
+            }
+          );
+        } catch (error) {
+          console.error(`Error creating field '${field.Title}':`, error);
+        }
+      }
+
+      console.log(`List '${resultsListName}' created with all required fields.`);
+    } catch (error) {
+      console.error('Error ensuring results list:', error);
+    }
+  };
 
 
 
@@ -1399,34 +1403,34 @@ private ensureResultsList = async (): Promise<void> => {
       isSubmitting: true,
       submissionError: ''
     });
-  
+
     try {
       // Calculate points for ALL questions
       let totalQuizPoints = 0;
       let earnedPoints = 0;
       const allQuestions = this.state.questions;
       let correctlyAnsweredQuestions = 0;
-  
+
       // Calculate total possible points and earned points
       allQuestions.forEach(question => {
         // Get points for this question (default to 1 if not specified)
         const questionPoints = question.points || 1;
         totalQuizPoints += questionPoints;
-  
+
         // Only add points if the question was answered and correct
         if (question.selectedChoice !== undefined && this.isQuestionCorrect(question)) {
           earnedPoints += questionPoints;
           correctlyAnsweredQuestions++; // Track correctly answered questions
         }
       });
-  
+
       console.log("Quiz submission calculated results:", {
         totalQuizPoints,
         earnedPoints,
         correctlyAnsweredQuestions,
         percentage: Math.round((earnedPoints / totalQuizPoints) * 100)
       });
-  
+
       // Make sure to update state BEFORE saving the results
       // This ensures the correct values are available when saveQuizResults is called
       this.setState({
@@ -1439,23 +1443,23 @@ private ensureResultsList = async (): Promise<void> => {
         try {
           // Save results to SharePoint list after state is updated
           const savedSuccessfully = await this.saveQuizResults();
-  
+
           // Prepare detailed results with comprehensive metrics
           const detailedResults = this.prepareDetailedResults(
             allQuestions,
             earnedPoints,
             totalQuizPoints
           );
-  
+
           // NEW: Check if HTTP trigger should be sent
           const scorePercentage = Math.round((earnedPoints / totalQuizPoints) * 100);
           await this.checkAndSendHttpTrigger(scorePercentage, detailedResults);
-  
+
           // Delete any existing saved progress
           if (this.state.savedProgressId) {
             await this.deleteSavedProgress(this.state.savedProgressId);
           }
-  
+
           // Update state with results
           this.setState({
             showResults: true,
@@ -1476,12 +1480,12 @@ private ensureResultsList = async (): Promise<void> => {
       });
     } catch (error) {
       console.error('Error submitting quiz:', error);
-  
+
       this.setState({
         submissionError: this.props.errorMessage || 'An error occurred while submitting your quiz.',
         isSubmitting: false
       });
-  
+
       // Optional: Delete saved progress even if submission fails
       if (this.state.savedProgressId) {
         try {
@@ -1492,6 +1496,7 @@ private ensureResultsList = async (): Promise<void> => {
       }
     }
   };
+
   private checkAndSendHttpTrigger = async (
     scorePercentage: number,
     detailedResults: IDetailedQuizResults
@@ -1501,35 +1506,37 @@ private ensureResultsList = async (): Promise<void> => {
       if (!this.props.enableHttpTrigger || !this.props.httpTriggerUrl) {
         return;
       }
-
-      const threshold = this.props.httpTriggerScoreThreshold || 80;
-
+  
+      // Use passingScore as the threshold instead of httpTriggerScoreThreshold
+      const threshold = this.props.passingScore || 70;
+  
       // Only send trigger if score meets threshold
       if (scorePercentage < threshold) {
         console.log(`Score ${scorePercentage}% is below HTTP trigger threshold ${threshold}%`);
         return;
       }
-
+  
       console.log(`Score ${scorePercentage}% meets HTTP trigger threshold ${threshold}%. Preparing to send trigger...`);
-
+  
       // Create HTTP trigger service
       const httpTriggerService = new HttpTriggerService(this.props.context);
-
-      // Prepare trigger configuration
+  
+      // Prepare trigger configuration - use timeLimit for timeout (convert from minutes to seconds)
       const triggerConfig: IHttpTriggerConfig = {
         url: this.props.httpTriggerUrl,
         method: this.props.httpTriggerMethod || 'POST',
-        timeout: this.props.httpTriggerTimeout || 30,
+        timeout: this.props.timeLimit ? Math.max(this.props.timeLimit, 30) : 30, // Use timeLimit (in seconds) or default to 30
         includeUserData: this.props.httpTriggerIncludeUserData !== false,
         customHeaders: this.props.httpTriggerCustomHeaders
       };
-
+  
       // Prepare quiz result data for trigger
       const currentUser = this.props.context.pageContext.user;
       const quizResult: IQuizResult = {
         Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
         UserName: currentUser.displayName || 'Anonymous',
-        UserId: currentUser.loginName || 'Unknown',
+        // FIXED: Use Entra ID instead of UPN for UserId
+        UserId: this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
         UserEmail: currentUser.email || 'Not provided',
         SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || undefined,
         QuizTitle: this.props.title || 'SharePoint Quiz',
@@ -1541,24 +1548,24 @@ private ensureResultsList = async (): Promise<void> => {
         QuestionDetails: JSON.stringify(detailedResults.questionResults),
         ResultDate: new Date().toISOString()
       };
-
+  
       // Send HTTP trigger with simplified payload (no quiz data)
       const triggerSent = await httpTriggerService.sendHighScoreTrigger(
         quizResult,
         triggerConfig,
         threshold
       );
-
+  
       if (triggerSent) {
         console.log('HTTP trigger sent successfully for high score achievement');
       } else {
         console.warn('Failed to send HTTP trigger for high score achievement');
       }
-
+  
     } catch (error) {
       console.error('Error in checkAndSendHttpTrigger:', error);
     }
-  };
+  };// Update the checkAndSendHttpTrigger method in Quiz.tsx to use timeLimit for timeout
   
 
   private handleRetakeQuiz = (): void => {
@@ -1754,10 +1761,10 @@ private ensureResultsList = async (): Promise<void> => {
   // Render methods
   private renderAdminPanel(): JSX.Element | null {
     if (this.props.displayMode !== DisplayMode.Edit) return null;
-  
+
     // Add an icon for the Category Order button
     const categoryOrderIcon: IIconProps = { iconName: 'BulletedList' };
-  
+
     return (
       <Stack horizontal tokens={stackTokens} className={styles.adminPanel}>
         <div className={styles.buttonGroup}>
@@ -1795,7 +1802,7 @@ private ensureResultsList = async (): Promise<void> => {
       </Stack>
     );
   }
-  
+
 
 
   private renderConfirmDialog(): JSX.Element {
@@ -1858,13 +1865,13 @@ private ensureResultsList = async (): Promise<void> => {
       quizStarted,
       overallTimerExpired
     } = this.state;
-  
+
     const {
       questionsPerPage,
       showProgressIndicator,
       displayMode,
     } = this.props;
-  
+
     if (questions.length === 0) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -1873,13 +1880,13 @@ private ensureResultsList = async (): Promise<void> => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-  
+
           {this.renderAdminPanel()}
-  
+
           <div className={styles.emptyState}>
             <Text variant="large">No questions have been added to this quiz yet.</Text>
             <Text>Use the admin panel to add questions or import from a file.</Text>
-  
+
             {displayMode === DisplayMode.Edit && (
               <Stack horizontal tokens={stackTokens} horizontalAlign="center" style={{ marginTop: '16px' }}>
                 <PrimaryButton
@@ -1890,7 +1897,7 @@ private ensureResultsList = async (): Promise<void> => {
               </Stack>
             )}
           </div>
-  
+
           {/* Dialogs */}
           {showAddQuestionForm && (
             <AddQuestionDialog
@@ -1902,7 +1909,7 @@ private ensureResultsList = async (): Promise<void> => {
               context={this.props.context}
             />
           )}
-  
+
           {importDialogOpen && (
             <ImportQuestionsDialog
               existingCategories={categories.filter(cat => cat !== 'All')}
@@ -1910,7 +1917,7 @@ private ensureResultsList = async (): Promise<void> => {
               onCancel={this.handleImportQuestionsCancel}
             />
           )}
-  
+
           {showCategoryOrderDialog && (
             <CategoryOrderDialog
               isOpen={showCategoryOrderDialog}
@@ -1920,14 +1927,14 @@ private ensureResultsList = async (): Promise<void> => {
               onDismiss={this.handleCloseCategoryOrderDialog}
             />
           )}
-  
+
           {this.renderConfirmDialog()}
           {this.renderSaveProgressDialog()}
           {this.renderResumeDialog()}
         </Stack>
       );
     }
-  
+
     if (displayMode === DisplayMode.Read && showStartPage) {
       return (
         <Stack styles={mainContainerStyles}>
@@ -1936,7 +1943,7 @@ private ensureResultsList = async (): Promise<void> => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-  
+
           <QuizStartPage
             title={this.props.title}
             onStartQuiz={this.handleStartQuiz}
@@ -1952,7 +1959,7 @@ private ensureResultsList = async (): Promise<void> => {
         </Stack>
       );
     }
-  
+
     // Loading state
     if (loading) {
       return (
@@ -1961,7 +1968,7 @@ private ensureResultsList = async (): Promise<void> => {
         </Stack>
       );
     }
-  
+
     // Results view
     if (showResults) {
       return (
@@ -1971,7 +1978,7 @@ private ensureResultsList = async (): Promise<void> => {
             title={this.props.title}
             updateProperty={this.props.updateProperty}
           />
-  
+
           <QuizResults
             score={this.state.score}
             totalQuestions={this.state.totalQuestions}
@@ -1992,19 +1999,19 @@ private ensureResultsList = async (): Promise<void> => {
         </Stack>
       );
     }
-  
+
     // Filter questions by category
     const filteredQuestions = currentCategory === 'All'
       ? questions
       : questions.filter(q => q.category === currentCategory);
-  
+
     // Paginate questions
     const startIndex = (currentPage - 1) * questionsPerPage;
     const paginatedQuestions = filteredQuestions.slice(startIndex, startIndex + questionsPerPage);
-  
+
     const allQuestionsAnswered = questions.length === answeredQuestions;
     const submitEnabled = !submitRequireAllAnswered ? answeredQuestions > 0 : allQuestionsAnswered;
-  
+
     // Quiz taker view (or edit mode)
     return (
       <Stack styles={mainContainerStyles} className="quiz">
@@ -2013,9 +2020,9 @@ private ensureResultsList = async (): Promise<void> => {
           title={this.props.title}
           updateProperty={this.props.updateProperty}
         />
-  
+
         {this.renderAdminPanel()}
-  
+
         {submissionError && (
           <MessageBar
             messageBarType={MessageBarType.error}
@@ -2025,7 +2032,7 @@ private ensureResultsList = async (): Promise<void> => {
             {submissionError}
           </MessageBar>
         )}
-  
+
         {/* Overall Quiz Timer - Only show when quiz is started in display mode */}
         {displayMode === DisplayMode.Read && quizStarted && this.props.timeLimit && this.props.timeLimit > 0 && (
           <QuizTimer
@@ -2034,7 +2041,7 @@ private ensureResultsList = async (): Promise<void> => {
             paused={showResults}
           />
         )}
-  
+
         {overallTimerExpired && (
           <MessageBar
             messageBarType={MessageBarType.severeWarning}
@@ -2044,7 +2051,7 @@ private ensureResultsList = async (): Promise<void> => {
             The time limit for this quiz has expired. Your answers have been automatically submitted.
           </MessageBar>
         )}
-  
+
         {displayMode === DisplayMode.Edit && (
           <Stack horizontal horizontalAlign="space-between" tokens={stackTokens}>
             <Checkbox
@@ -2054,7 +2061,7 @@ private ensureResultsList = async (): Promise<void> => {
             />
           </Stack>
         )}
-  
+
         {/* Progress Indicator */}
         {showProgressIndicator && (
           <QuizProgressTracker
@@ -2071,7 +2078,7 @@ private ensureResultsList = async (): Promise<void> => {
             showIcon={true}
           />
         )}
-  
+
         <Pivot
           selectedKey={currentCategory}
           onLinkClick={this.handleCategoryChange}
@@ -2081,7 +2088,7 @@ private ensureResultsList = async (): Promise<void> => {
             <PivotItem key={category} headerText={category} itemKey={category} />
           ))}
         </Pivot>
-  
+
         {filteredQuestions.length === 0 ? (
           <MessageBar messageBarType={MessageBarType.info}>
             No questions found for this category.
@@ -2101,7 +2108,7 @@ private ensureResultsList = async (): Promise<void> => {
                 />
               ))}
             </div>
-  
+
             {filteredQuestions.length > questionsPerPage && (
               <div className={styles.paginationContainer}>
                 <Pagination
@@ -2112,7 +2119,7 @@ private ensureResultsList = async (): Promise<void> => {
                 />
               </div>
             )}
-  
+
             <div className={styles.submitContainer}>
               {isSubmitting ? (
                 <Spinner size={SpinnerSize.small} label="Submitting quiz..." />
@@ -2140,7 +2147,7 @@ private ensureResultsList = async (): Promise<void> => {
             </div>
           </>
         )}
-  
+
         {/* Dialogs */}
         {showQuestionPreview && previewQuestion && (
           <QuestionPreview
@@ -2148,7 +2155,7 @@ private ensureResultsList = async (): Promise<void> => {
             onClose={this.handleClosePreview}
           />
         )}
-  
+
         {showEditQuestionsDialog && (
           <Dialog
             hidden={false}
@@ -2185,13 +2192,13 @@ private ensureResultsList = async (): Promise<void> => {
                   <Stack horizontal horizontalAlign="space-between" verticalAlign="center" style={{ marginBottom: '16px' }}>
                     <Text variant="large">{questions.length} questions total</Text>
                   </Stack>
-  
+
                   <QuestionManagement
                     questions={questions}
                     onUpdateQuestions={(updatedQuestions) => {
                       // Update questions through the prop callback
                       this.props.updateQuestions(updatedQuestions);
-  
+
                       // Update local state for immediate re-render
                       this.setState({
                         questions: updatedQuestions,
@@ -2228,7 +2235,7 @@ private ensureResultsList = async (): Promise<void> => {
             </DialogFooter>
           </Dialog>
         )}
-  
+
         {showCategoryOrderDialog && (
           <CategoryOrderDialog
             isOpen={showCategoryOrderDialog}
@@ -2238,7 +2245,7 @@ private ensureResultsList = async (): Promise<void> => {
             onDismiss={this.handleCloseCategoryOrderDialog}
           />
         )}
-  
+
         {showAddQuestionForm && (
           <AddQuestionDialog
             categories={categories.filter(cat => cat !== 'All')}
@@ -2250,7 +2257,7 @@ private ensureResultsList = async (): Promise<void> => {
             context={this.props.context}
           />
         )}
-  
+
         {importDialogOpen && (
           <ImportQuestionsDialog
             existingCategories={categories.filter(cat => cat !== 'All')}
@@ -2258,7 +2265,7 @@ private ensureResultsList = async (): Promise<void> => {
             onCancel={this.handleImportQuestionsCancel}
           />
         )}
-  
+
         {this.renderConfirmDialog()}
         {this.renderSaveProgressDialog()}
         {this.renderResumeDialog()}

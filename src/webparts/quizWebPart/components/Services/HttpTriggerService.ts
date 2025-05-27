@@ -18,7 +18,7 @@ export interface IHttpTriggerPayload {
 export interface IHttpTriggerConfig {
   url: string;
   method: string;
-  timeout: number;
+  timeout: number; // This will come from timeLimit property
   includeUserData: boolean;
   customHeaders?: string;
 }

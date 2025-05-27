@@ -16,40 +16,9 @@ import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 import * as strings from 'QuizWebPartStrings';
 import Quiz from './components/Quiz';
 import { IQuizProps } from './components/IQuizProps';
-import { IQuizPropertyPaneProps, IQuizQuestion, QuestionType } from './components/interfaces';
+import { IQuizPropertyPaneProps, IQuizQuestion, IQuizWebPartProps, QuestionType } from './components/interfaces';
 import QuizPropertyPane from './components/QuizPropertyPane';
 
-// Replace the IQuizWebPartProps interface in QuizWebPart.ts with this updated version
-export interface IQuizWebPartProps {
-  title: string;
-  questionsPerPage: number;
-  successMessage: string;
-  excellentScoreMessage: string;
-  goodScoreMessage: string;
-  averageScoreMessage: string;
-  poorScoreMessage: string;
-  errorMessage: string;
-  resultsSavedMessage: string;
-  showProgressIndicator: boolean;
-  randomizeQuestions: boolean;
-  randomizeAnswers: boolean;
-  questions: IQuizQuestion[];
-  passingScore: number;
-  timeLimit: number;
-  enableQuestionTimeLimit: boolean;
-  defaultQuestionTimeLimit: number;
-  resultsListName: string;
-  
-  // HTTP Trigger properties
-  enableHttpTrigger: boolean;
-  httpTriggerUrl: string;
-  httpTriggerScoreThreshold: number;
-  httpTriggerMethod: string;
-  httpTriggerIncludeUserData: boolean;
-  httpTriggerIncludeQuizData: boolean;
-  httpTriggerCustomHeaders: string;
-  httpTriggerTimeout: number;
-}
 
 export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps> {
   private _reactElement: HTMLElement | null = null;
@@ -57,65 +26,63 @@ export default class QuizWebPart extends BaseClientSideWebPart<IQuizWebPartProps
   private _listOptions: { key: string; text: string }[] = [];
   private _listsLoaded: boolean = false;
 
-// Update the render method in QuizWebPart.ts to pass HTTP trigger props
-public render(): void {
-  // Unmount any existing React components
-  this.disposeReactComponents();
-
-  // Create a new container for the main React component
-  this._reactElement = document.createElement('div');
-  this.domElement.appendChild(this._reactElement);
-
-  const element: React.ReactElement<IQuizProps> = React.createElement(
-    Quiz,
-    {
-      title: this.properties.title || 'SharePoint Quiz',
-      questionsPerPage: this.properties.questionsPerPage || 5,
-      context: this.context,
-      displayMode: this.displayMode,
-      updateProperty: (value: string) => {
-        this.properties.title = value;
-      },
-      successMessage: this.properties.successMessage || 'Your score has been successfully recorded!',
-      excellentScoreMessage: this.properties.excellentScoreMessage || 'Excellent! You have mastered this topic!',
-      goodScoreMessage: this.properties.goodScoreMessage || 'Good job! You have a solid understanding.',
-      averageScoreMessage: this.properties.averageScoreMessage || 'Not bad. There\'s room for improvement.',
-      poorScoreMessage: this.properties.poorScoreMessage || 'Keep studying. You\'ll get better with practice.',
-      errorMessage: this.properties.errorMessage || 'An error occurred. Please try again later.',
-      resultsSavedMessage: this.properties.resultsSavedMessage || 'Your score has been successfully saved!',
-      showProgressIndicator: this.properties.showProgressIndicator !== undefined ? this.properties.showProgressIndicator : true,
-      randomizeQuestions: this.properties.randomizeQuestions !== undefined ? this.properties.randomizeQuestions : false,
-      randomizeAnswers: this.properties.randomizeAnswers !== undefined ? this.properties.randomizeAnswers : false,
-      passingScore: this.properties.passingScore || 70,
-      timeLimit: this.properties.timeLimit ? this.properties.timeLimit * 60 : undefined,
-      enableQuestionTimeLimit: this.properties.enableQuestionTimeLimit || false,
-      defaultQuestionTimeLimit: this.properties.defaultQuestionTimeLimit || 60,
-      questions: this.properties.questions || [],
-      resultsListName: this.properties.resultsListName || 'QuizResults',
-      
-      // NEW: HTTP Trigger properties
-      enableHttpTrigger: this.properties.enableHttpTrigger || false,
-      httpTriggerUrl: this.properties.httpTriggerUrl || '',
-      httpTriggerScoreThreshold: this.properties.httpTriggerScoreThreshold || 80,
-      httpTriggerMethod: this.properties.httpTriggerMethod || 'POST',
-      httpTriggerIncludeUserData: this.properties.httpTriggerIncludeUserData !== false,
-      httpTriggerIncludeQuizData: this.properties.httpTriggerIncludeQuizData !== false,
-      httpTriggerCustomHeaders: this.properties.httpTriggerCustomHeaders || '',
-      httpTriggerTimeout: this.properties.httpTriggerTimeout || 30,
-      
-      updateQuestions: (questions: IQuizQuestion[]) => {
-        this.properties.questions = questions;
-        this.render();
+  // Update the render method in QuizWebPart.ts to pass HTTP trigger props
+  public render(): void {
+    // Unmount any existing React components
+    this.disposeReactComponents();
+  
+    // Create a new container for the main React component
+    this._reactElement = document.createElement('div');
+    this.domElement.appendChild(this._reactElement);
+  
+    const element: React.ReactElement<IQuizProps> = React.createElement(
+      Quiz,
+      {
+        title: this.properties.title || 'SharePoint Quiz',
+        questionsPerPage: this.properties.questionsPerPage || 5,
+        context: this.context,
+        displayMode: this.displayMode,
+        updateProperty: (value: string) => {
+          this.properties.title = value;
+        },
+        successMessage: this.properties.successMessage || 'Your score has been successfully recorded!',
+        excellentScoreMessage: this.properties.excellentScoreMessage || 'Excellent! You have mastered this topic!',
+        goodScoreMessage: this.properties.goodScoreMessage || 'Good job! You have a solid understanding.',
+        averageScoreMessage: this.properties.averageScoreMessage || 'Not bad. There\'s room for improvement.',
+        poorScoreMessage: this.properties.poorScoreMessage || 'Keep studying. You\'ll get better with practice.',
+        errorMessage: this.properties.errorMessage || 'An error occurred. Please try again later.',
+        resultsSavedMessage: this.properties.resultsSavedMessage || 'Your score has been successfully saved!',
+        showProgressIndicator: this.properties.showProgressIndicator !== undefined ? this.properties.showProgressIndicator : true,
+        randomizeQuestions: this.properties.randomizeQuestions !== undefined ? this.properties.randomizeQuestions : false,
+        randomizeAnswers: this.properties.randomizeAnswers !== undefined ? this.properties.randomizeAnswers : false,
+        passingScore: this.properties.passingScore || 70,
+        timeLimit: this.properties.timeLimit ? this.properties.timeLimit * 60 : undefined,
+        enableQuestionTimeLimit: this.properties.enableQuestionTimeLimit || false,
+        defaultQuestionTimeLimit: this.properties.defaultQuestionTimeLimit || 60,
+        questions: this.properties.questions || [],
+        resultsListName: this.properties.resultsListName || 'QuizResults',
+        
+        // HTTP Trigger properties
+        enableHttpTrigger: this.properties.enableHttpTrigger || false,
+        httpTriggerUrl: this.properties.httpTriggerUrl || '',
+        httpTriggerMethod: this.properties.httpTriggerMethod || 'POST',
+        httpTriggerIncludeUserData: this.properties.httpTriggerIncludeUserData !== false,
+        httpTriggerIncludeQuizData: this.properties.httpTriggerIncludeQuizData !== false,
+        httpTriggerCustomHeaders: this.properties.httpTriggerCustomHeaders || '',
+        
+        updateQuestions: (questions: IQuizQuestion[]) => {
+          this.properties.questions = questions;
+          this.render();
+        }
       }
-    }
-  );
-
-  // Render the new component
-  ReactDom.render(element, this._reactElement);
-
-  // Render property pane content if it's open
-  this.renderPropertyPaneContent();
-}
+    );
+  
+    // Render the new component
+    ReactDom.render(element, this._reactElement);
+  
+    // Render property pane content if it's open
+    this.renderPropertyPaneContent();
+  }
 
   // Helper function to clean up React components
   private disposeReactComponents(): void {
@@ -197,7 +164,7 @@ public render(): void {
             key: list.Title,
             text: list.Title
           }));
-          
+
           // Always add QuizResults as a default option if it doesn't exist
           if (!this._listOptions.some(option => option.key === 'QuizResults')) {
             this._listOptions.unshift({
@@ -205,7 +172,7 @@ public render(): void {
               text: 'QuizResults (Default)'
             });
           }
-          
+
           this._listsLoaded = true;
           this.context.propertyPane.refresh();
         } else {
@@ -288,203 +255,190 @@ public render(): void {
     super.onPropertyPaneFieldChanged(propertyPath, oldValue, newValue);
   }
 
-// Update the getPropertyPaneConfiguration method in QuizWebPart.ts
-protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
-  return {
-    pages: [
-      {
-        header: {
-          description: strings.PropertyPaneDescription
-        },
-        groups: [
-          {
-            groupName: strings.BasicGroupName,
-            groupFields: [
-              PropertyPaneTextField('title', {
-                label: strings.TitleFieldLabel
-              }),
-              PropertyPaneDropdown('questionsPerPage', {
-                label: strings.QuestionsPerPageFieldLabel,
-                options: [
-                  { key: 1, text: '1' },
-                  { key: 3, text: '3' },
-                  { key: 5, text: '5' },
-                  { key: 10, text: '10' }
-                ]
-              }),
-              PropertyPaneToggle('showProgressIndicator', {
-                label: 'Show Progress Indicator',
-                onText: 'On',
-                offText: 'Off'
-              }),
-              PropertyPaneToggle('randomizeQuestions', {
-                label: 'Randomize Questions',
-                onText: 'On',
-                offText: 'Off'
-              }),
-              PropertyPaneToggle('randomizeAnswers', {
-                label: 'Randomize Answer Choices',
-                onText: 'On',
-                offText: 'Off'
-              })
-            ]
+  // Update the getPropertyPaneConfiguration method in QuizWebPart.ts
+  // In QuizWebPart.ts, update the getPropertyPaneConfiguration method to remove duplicate timeout field
+
+  protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
+    return {
+      pages: [
+        {
+          header: {
+            description: strings.PropertyPaneDescription
           },
-          {
-            groupName: 'Quiz Settings',
-            groupFields: [
-              PropertyPaneTextField('passingScore', {
-                label: 'Passing Score (%)',
-                description: 'Minimum percentage to pass the quiz'
-              }),
-              PropertyPaneTextField('timeLimit', {
-                label: 'Overall Quiz Time Limit (minutes)',
-                description: 'Maximum time allowed for the entire quiz (0 for no time limit)'
-              }),
-              PropertyPaneToggle('enableQuestionTimeLimit', {
-                label: 'Enable Question Time Limits',
-                onText: 'On',
-                offText: 'Off',
-                checked: this.properties.enableQuestionTimeLimit
-              }),
-              this.properties.enableQuestionTimeLimit ? 
-              PropertyPaneSlider('defaultQuestionTimeLimit', {
-                label: 'Default Question Time Limit (seconds)',
-                min: 10,
-                max: 300,
-                step: 5,
-                showValue: true,
-                value: this.properties.defaultQuestionTimeLimit || 60
-              }) : null,
-              PropertyPaneDropdown('resultsListName', {
-                label: 'Quiz Results List',
-                options: this._listOptions,
-                selectedKey: this.properties.resultsListName || 'QuizResults'
-              })
-            ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
-          },
-          {
-            groupName: 'HTTP Trigger Settings',
-            groupFields: [
-              PropertyPaneToggle('enableHttpTrigger', {
-                label: 'Enable HTTP Trigger',
-                onText: 'Enabled',
-                offText: 'Disabled',
-                checked: this.properties.enableHttpTrigger || false
-              }),
-              this.properties.enableHttpTrigger ? PropertyPaneTextField('httpTriggerUrl', {
-                label: 'HTTP Trigger URL',
-                description: 'Flow or Logic App HTTP trigger URL',
-                placeholder: 'https://prod-xx.westus.logic.azure.com:443/workflows/...',
-                multiline: false
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneSlider('httpTriggerScoreThreshold', {
-                label: 'Score Threshold (%)',
-                min: 0,
-                max: 100,
-                step: 5,
-                showValue: true,
-                value: this.properties.httpTriggerScoreThreshold || 80
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneDropdown('httpTriggerMethod', {
-                label: 'HTTP Method',
-                options: [
-                  { key: 'POST', text: 'POST' },
-                  { key: 'PUT', text: 'PUT' },
-                  { key: 'PATCH', text: 'PATCH' },
-                  { key: 'GET', text: 'GET' }
-                ],
-                selectedKey: this.properties.httpTriggerMethod || 'POST'
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneToggle('httpTriggerIncludeUserData', {
-                label: 'Include User Data',
-                onText: 'Yes',
-                offText: 'No',
-                checked: this.properties.httpTriggerIncludeUserData !== false
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneToggle('httpTriggerIncludeQuizData', {
-                label: 'Include Quiz Results Data',
-                onText: 'Yes',
-                offText: 'No',
-                checked: this.properties.httpTriggerIncludeQuizData !== false
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneTextField('httpTriggerCustomHeaders', {
-                label: 'Custom Headers (JSON)',
-                description: 'Optional custom headers as JSON object: {"Authorization": "Bearer token"}',
-                multiline: true,
-                placeholder: '{"Content-Type": "application/json"}'
-              }) : null,
-              this.properties.enableHttpTrigger ? PropertyPaneSlider('httpTriggerTimeout', {
-                label: 'Request Timeout (seconds)',
-                min: 5,
-                max: 60,
-                step: 5,
-                showValue: true,
-                value: this.properties.httpTriggerTimeout || 30
-              }) : null
-            ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
-          },
-          {
-            groupName: 'Messages',
-            groupFields: [
-              PropertyPaneTextField('successMessage', {
-                label: 'Success Message'
-              }),
-              PropertyPaneTextField('excellentScoreMessage', {
-                label: 'Excellent Score Message (90-100%)'
-              }),
-              PropertyPaneTextField('goodScoreMessage', {
-                label: 'Good Score Message (70-89%)'
-              }),
-              PropertyPaneTextField('averageScoreMessage', {
-                label: 'Average Score Message (50-69%)'
-              }),
-              PropertyPaneTextField('poorScoreMessage', {
-                label: 'Poor Score Message (0-49%)'
-              }),
-              PropertyPaneTextField('errorMessage', {
-                label: 'Error Message'
-              }),
-              PropertyPaneTextField('resultsSavedMessage', {
-                label: 'Results Saved Message'
-              })
-            ]
-          },
-          {
-            groupName: 'Question Management',
-            groupFields: [
-              {
-                key: 'questionManager',
-                type: 0,
-                targetProperty: 'questionManager',
-                properties: {},
-                onRender: (): HTMLElement | null => {
-                  try {
+          groups: [
+            {
+              groupName: strings.BasicGroupName,
+              groupFields: [
+                PropertyPaneTextField('title', {
+                  label: strings.TitleFieldLabel
+                }),
+                PropertyPaneDropdown('questionsPerPage', {
+                  label: strings.QuestionsPerPageFieldLabel,
+                  options: [
+                    { key: 1, text: '1' },
+                    { key: 3, text: '3' },
+                    { key: 5, text: '5' },
+                    { key: 10, text: '10' }
+                  ]
+                }),
+                PropertyPaneToggle('showProgressIndicator', {
+                  label: 'Show Progress Indicator',
+                  onText: 'On',
+                  offText: 'Off'
+                }),
+                PropertyPaneToggle('randomizeQuestions', {
+                  label: 'Randomize Questions',
+                  onText: 'On',
+                  offText: 'Off'
+                }),
+                PropertyPaneToggle('randomizeAnswers', {
+                  label: 'Randomize Answer Choices',
+                  onText: 'On',
+                  offText: 'Off'
+                })
+              ]
+            },
+            {
+              groupName: 'Quiz Settings',
+              groupFields: [
+                PropertyPaneTextField('passingScore', {
+                  label: 'Passing Score (%)',
+                  description: 'Minimum percentage to pass the quiz'
+                }),
+                PropertyPaneTextField('timeLimit', {
+                  label: 'Overall Quiz Time Limit (minutes)',
+                  description: 'Maximum time allowed for the entire quiz (0 for no time limit)'
+                }),
+                PropertyPaneToggle('enableQuestionTimeLimit', {
+                  label: 'Enable Question Time Limits',
+                  onText: 'On',
+                  offText: 'Off',
+                  checked: this.properties.enableQuestionTimeLimit
+                }),
+                this.properties.enableQuestionTimeLimit ?
+                  PropertyPaneSlider('defaultQuestionTimeLimit', {
+                    label: 'Default Question Time Limit (seconds)',
+                    min: 10,
+                    max: 300,
+                    step: 5,
+                    showValue: true,
+                    value: this.properties.defaultQuestionTimeLimit || 60
+                  }) : null,
+                PropertyPaneDropdown('resultsListName', {
+                  label: 'Quiz Results List',
+                  options: this._listOptions,
+                  selectedKey: this.properties.resultsListName || 'QuizResults'
+                })
+              ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
+            },
+            {
+              groupName: 'HTTP Trigger Settings',
+              groupFields: [
+                PropertyPaneToggle('enableHttpTrigger', {
+                  label: 'Enable HTTP Trigger',
+                  onText: 'Enabled',
+                  offText: 'Disabled',
+                  checked: this.properties.enableHttpTrigger || false
+                }),
+                this.properties.enableHttpTrigger ? PropertyPaneTextField('httpTriggerUrl', {
+                  label: 'HTTP Trigger URL',
+                  description: 'Flow or Logic App HTTP trigger URL',
+                  placeholder: 'https://prod-xx.westus.logic.azure.com:443/workflows/...',
+                  multiline: false
+                }) : null,
+                this.properties.enableHttpTrigger ? PropertyPaneDropdown('httpTriggerMethod', {
+                  label: 'HTTP Method',
+                  options: [
+                    { key: 'POST', text: 'POST' },
+                    { key: 'PUT', text: 'PUT' },
+                    { key: 'PATCH', text: 'PATCH' },
+                    { key: 'GET', text: 'GET' }
+                  ],
+                  selectedKey: this.properties.httpTriggerMethod || 'POST'
+                }) : null,
+                this.properties.enableHttpTrigger ? PropertyPaneToggle('httpTriggerIncludeUserData', {
+                  label: 'Include User Data',
+                  onText: 'Yes',
+                  offText: 'No',
+                  checked: this.properties.httpTriggerIncludeUserData !== false
+                }) : null,
+                this.properties.enableHttpTrigger ? PropertyPaneToggle('httpTriggerIncludeQuizData', {
+                  label: 'Include Quiz Results Data',
+                  onText: 'Yes',
+                  offText: 'No',
+                  checked: this.properties.httpTriggerIncludeQuizData !== false
+                }) : null,
+                this.properties.enableHttpTrigger ? PropertyPaneTextField('httpTriggerCustomHeaders', {
+                  label: 'Custom Headers (JSON)',
+                  description: 'Optional custom headers as JSON object: {"Authorization": "Bearer token"}',
+                  multiline: true,
+                  placeholder: '{"Content-Type": "application/json"}'
+                }) : null
+                // REMOVED: Duplicate timeout field - use existing timeLimit from Quiz Settings instead
+              ].filter(Boolean) as IPropertyPaneField<IPropertyPaneCustomFieldProps>[]
+            },
+            {
+              groupName: 'Messages',
+              groupFields: [
+                PropertyPaneTextField('successMessage', {
+                  label: 'Success Message'
+                }),
+                PropertyPaneTextField('excellentScoreMessage', {
+                  label: 'Excellent Score Message (90-100%)'
+                }),
+                PropertyPaneTextField('goodScoreMessage', {
+                  label: 'Good Score Message (70-89%)'
+                }),
+                PropertyPaneTextField('averageScoreMessage', {
+                  label: 'Average Score Message (50-69%)'
+                }),
+                PropertyPaneTextField('poorScoreMessage', {
+                  label: 'Poor Score Message (0-49%)'
+                }),
+                PropertyPaneTextField('errorMessage', {
+                  label: 'Error Message'
+                }),
+                PropertyPaneTextField('resultsSavedMessage', {
+                  label: 'Results Saved Message'
+                })
+              ]
+            },
+            {
+              groupName: 'Question Management',
+              groupFields: [
+                {
+                  key: 'questionManager',
+                  type: 0,
+                  targetProperty: 'questionManager',
+                  properties: {},
+                  onRender: (): HTMLElement | null => {
+                    try {
+                      this.disposeReactComponents();
+                      this._propertyPaneContainer = document.createElement('div');
+                      this._propertyPaneContainer.className = 'quiz-property-pane-container';
+
+                      // Add a setTimeout to ensure the container is properly attached to DOM
+                      setTimeout(() => {
+                        this.renderPropertyPaneContent();
+                      }, 100);
+
+                      return this._propertyPaneContainer;
+                    } catch (error) {
+                      console.error('Error in onRender:', error);
+                      const errorContainer = document.createElement('div');
+                      errorContainer.innerHTML = '<div style="color: red; padding: 10px;">Error loading question manager. Please refresh the page and try again.</div>';
+                      return errorContainer;
+                    }
+                  },
+                  onDispose: (): void => {
                     this.disposeReactComponents();
-                    this._propertyPaneContainer = document.createElement('div');
-                    this._propertyPaneContainer.className = 'quiz-property-pane-container';
-                    
-                    // Add a setTimeout to ensure the container is properly attached to DOM
-                    setTimeout(() => {
-                      this.renderPropertyPaneContent();
-                    }, 100);
-                    
-                    return this._propertyPaneContainer;
-                  } catch (error) {
-                    console.error('Error in onRender:', error);
-                    const errorContainer = document.createElement('div');
-                    errorContainer.innerHTML = '<div style="color: red; padding: 10px;">Error loading question manager. Please refresh the page and try again.</div>';
-                    return errorContainer;
                   }
-                },
-                onDispose: (): void => {
-                  this.disposeReactComponents();
-                }
-              } as unknown as IPropertyPaneField<IPropertyPaneCustomFieldProps>
-            ]
-          }
-        ]
-      }
-    ]
-  };
-}
+                } as unknown as IPropertyPaneField<IPropertyPaneCustomFieldProps>
+              ]
+            }
+          ]
+        }
+      ]
+    };
+  }
 }

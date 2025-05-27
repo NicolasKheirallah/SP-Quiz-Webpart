@@ -173,14 +173,11 @@ export interface IQuizWebPartProps {
   resultsListName: string;
   enableHttpTrigger: boolean;
   httpTriggerUrl: string;
-  httpTriggerScoreThreshold: number;
-  httpTriggerMethod: string; // GET, POST, PUT, etc.
+  httpTriggerMethod: string;
   httpTriggerIncludeUserData: boolean;
   httpTriggerIncludeQuizData: boolean;
-  httpTriggerCustomHeaders: string; // JSON string of custom headers
-  httpTriggerTimeout: number; // Timeout in seconds
+  httpTriggerCustomHeaders: string;
 }
-
 
 export interface IQuizQuestionProps {
   question: IQuizQuestion;

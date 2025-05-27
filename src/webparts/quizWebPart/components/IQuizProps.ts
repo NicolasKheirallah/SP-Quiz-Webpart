@@ -27,10 +27,8 @@ export interface IQuizProps {
   updateQuestions: (questions: IQuizQuestion[]) => void;
   enableHttpTrigger?: boolean;
   httpTriggerUrl?: string;
-  httpTriggerScoreThreshold?: number;
   httpTriggerMethod?: string;
   httpTriggerIncludeUserData?: boolean;
   httpTriggerIncludeQuizData?: boolean;
   httpTriggerCustomHeaders?: string;
-  httpTriggerTimeout?: number;
 }
