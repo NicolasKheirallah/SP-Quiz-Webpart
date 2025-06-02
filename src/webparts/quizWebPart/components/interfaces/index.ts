@@ -279,7 +279,6 @@ export interface IQuizResult {
   UserName: string;
   UserId: string; 
   UserEmail: string;
-  SharePointUserId?: number;
   QuizTitle: string;
   Score: number;
   TotalPoints: number;
@@ -290,13 +289,29 @@ export interface IQuizResult {
   ResultDate: string;
 }
 
+export interface IUserIdentification {
+  entraId: string; // Azure AD Object ID
+  displayName: string;
+  email: string;
+  userPrincipalName?: string;
+}
+
+export interface IQuizResultsExtended extends IQuizResult {
+  // Additional fields that might be useful for reporting
+  UserPrincipalName?: string;
+  TenantId?: string;
+  SiteId?: string;
+  WebId?: string;
+}
+
+
 
 /**
  * Update ISavedQuizProgress interface with an optional id field
  */
 export interface ISavedQuizProgress {
-  id?: number;
-  userId: string;
+  id?: number; 
+  userId: string; 
   userName: string;
   quizTitle: string;
   questions: IQuizQuestion[];

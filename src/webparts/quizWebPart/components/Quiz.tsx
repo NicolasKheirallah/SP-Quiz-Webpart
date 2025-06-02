@@ -292,12 +292,32 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       this.handleStartQuiz();
     }
   };
+  private getCurrentUserEntraId = (): string | null => {
+    try {
+      // Get Entra ID directly from context - no Graph API call needed!
+      const entraId = this.props.context?.pageContext?.aadInfo?.userId?._guid;
+      console.log()
+      if (entraId) {
+        console.log('Current user Entra ID:', entraId);
+        return entraId;
+      } else {
+        console.warn('Entra ID not found in context, falling back to SharePoint User ID');
+        // Fallback to SharePoint User ID if Entra ID is not available
+        return this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown';
+      }
+    } catch (error) {
+      console.error('Error getting user Entra ID from context:', error);
+      // Fallback to SharePoint User ID if there's an error
+      return this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown';
+    }
+  };
+
 
   private saveQuizResults = async (): Promise<boolean> => {
     try {
       const spHttpClient = this.props.context.spHttpClient;
       const webUrl = this.props.context.pageContext.web.absoluteUrl;
-      const currentUser = this.props.context.pageContext.user;
+      // const currentUser = this.props.context.pageContext.user;
       const resultsListName = this.props.resultsListName || 'QuizResults';
 
       const scorePercentage = this.state.totalPoints > 0
@@ -323,13 +343,16 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         };
       });
 
+      // Get the user's Entra ID from context (no Graph API needed!)
+      const userEntraId = this.getCurrentUserEntraId();
+
       const resultData = {
         Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
-        UserName: currentUser.displayName || 'Anonymous',
-        // FIXED: Use Entra ID instead of UPN/Email for UserId
-        UserId: this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
-        UserEmail: currentUser.email || 'Not provided',
-        SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || null,
+        // UserName: currentUser.displayName || 'Anonymous',
+        UserName: 'Anonymous',
+        UserId: userEntraId || 'Unknown',
+        // UserEmail: currentUser.email || 'Not provided',
+        UserEmail: 'Not provided',
         QuizTitle: this.props.title || 'SharePoint Quiz',
         Score: Number(this.state.score),
         TotalPoints: Number(this.state.totalPoints),
@@ -358,7 +381,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         throw new Error(`Failed to save quiz results: ${errorText}`);
       }
 
-      console.log(`Quiz results saved successfully to ${resultsListName}`);
+      console.log(`Quiz results saved successfully to ${resultsListName} with Entra ID: ${userEntraId}`);
       return true;
     } catch (error) {
       console.error('Error in saveQuizResults:', error);
@@ -368,6 +391,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       return false;
     }
   }
+
 
 
 
@@ -410,9 +434,12 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       // Use a dedicated list for progress
       const progressListName = "QuizProgress";
 
+      // Get the user's Entra ID from context (no Graph API needed!)
+      const userEntraId = this.getCurrentUserEntraId();
+
       // Prepare progress data - FIXED: Use Entra ID for userId
       const progressData: ISavedQuizProgress = {
-        userId: context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
+        userId: userEntraId || 'Unknown',
         userName: currentUser.displayName || 'Anonymous',
         quizTitle: this.props.title || 'SharePoint Quiz',
         questions: this.state.questions,
@@ -429,17 +456,16 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         UserName: progressData.userName,
         QuizTitle: progressData.quizTitle,
         QuizData: JSON.stringify(progressData),
-        LastSaved: progressData.lastSaved
+        LastSaved: progressData.lastSaved,
       };
 
-      console.log("Saving quiz progress:", {
+      console.log("Saving quiz progress with Entra ID:", {
         listName: progressListName,
-        progressData: progressData,
-        spItemData: spItemData,
+        userEntraId: userEntraId,
         savedProgressId: this.state.savedProgressId
       });
 
-      // Decide whether to create or update based on savedProgressId
+      // Rest of the save logic remains the same...
       let endpoint = '';
       let method = '';
       const headers: HeadersInit = {
@@ -449,66 +475,49 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       };
 
       if (this.state.savedProgressId) {
-        // Update existing record
         endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items(${this.state.savedProgressId})`;
-        method = 'POST';  // Use POST instead of MERGE
-        headers['X-HTTP-Method'] = 'MERGE';  // Add X-HTTP-Method override
+        method = 'POST';
+        headers['X-HTTP-Method'] = 'MERGE';
         headers['IF-MATCH'] = '*';
       } else {
-        // Create new record
         endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items`;
         method = 'POST';
       }
 
-      console.log(`Saving to endpoint: ${endpoint} with method: ${method}`);
-
-      try {
-        const response = await spHttpClient.fetch(
-          endpoint,
-          SPHttpClient.configurations.v1,
-          {
-            method,
-            headers,
-            body: JSON.stringify(spItemData)
-          }
-        );
-
-        // Log response status
-        console.log(`Response status: ${response.status}`);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Error response from SharePoint:', errorData);
-          throw new Error(`Failed to save progress: ${JSON.stringify(errorData)}`);
+      const response = await spHttpClient.fetch(
+        endpoint,
+        SPHttpClient.configurations.v1,
+        {
+          method,
+          headers,
+          body: JSON.stringify(spItemData)
         }
+      );
 
-        // If this is a new record, get the ID
-        if (!this.state.savedProgressId) {
-          const responseData = await response.json();
-          console.log("Save response data:", responseData);
-          this.setState({ savedProgressId: responseData.Id });
-        }
-
-        // Display success message
-        this.setState({
-          hasSavedProgress: true,
-          isSubmitting: false,
-          showSaveProgressDialog: false,
-          submissionSuccess: true
-        });
-
-        // Show temporary success message
-        alert("Your progress has been saved successfully! You can resume this quiz later.");
-
-        return true;
-      } catch (error) {
-        console.error('Error in API call:', error);
-        throw error; // Re-throw to be caught by outer catch
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response from SharePoint:', errorData);
+        throw new Error(`Failed to save progress: ${JSON.stringify(errorData)}`);
       }
+
+      // If this is a new record, get the ID
+      if (!this.state.savedProgressId) {
+        const responseData = await response.json();
+        this.setState({ savedProgressId: responseData.Id });
+      }
+
+      this.setState({
+        hasSavedProgress: true,
+        isSubmitting: false,
+        showSaveProgressDialog: false,
+        submissionSuccess: true
+      });
+
+      alert("Your progress has been saved successfully! You can resume this quiz later.");
+      return true;
+
     } catch (error) {
       console.error('Error saving quiz progress:', error);
-
-      // Create a user-friendly error message
       let errorMessage = 'Error saving progress';
       if (error instanceof Error) {
         errorMessage = `Error: ${error.message}`;
@@ -520,9 +529,7 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         showSaveProgressDialog: false
       });
 
-      // Show error to user
       alert(`Failed to save quiz progress: ${errorMessage}`);
-
       return false;
     }
   };
@@ -536,62 +543,60 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
       const { context } = this.props;
       const spHttpClient = context.spHttpClient;
       const webUrl = context.pageContext.web.absoluteUrl;
-      // FIXED: Use Entra ID instead of UPN for filtering
-      const currentUserId = context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown';
 
-      // Use the same list as quiz results or a dedicated progress list
+      // Get the user's Entra ID from context (no Graph API needed!)
+      const userEntraId = this.getCurrentUserEntraId();
+
       const progressListName = "QuizProgress";
 
       // Query for saved progress for this user and quiz - using Entra ID
-      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${currentUserId}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
+      const endpoint = `${webUrl}/_api/web/lists/getbytitle('${progressListName}')/items?$filter=UserId eq '${userEntraId}' and QuizTitle eq '${this.props.title}'&$orderby=Modified desc&$top=1`;
 
       console.log(`Checking saved progress at endpoint: ${endpoint}`);
 
-      try {
-        const response = await spHttpClient.get(
-          endpoint,
-          SPHttpClient.configurations.v1,
-          {
-            headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'odata-version': ''
-            }
+      const response = await spHttpClient.get(
+        endpoint,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=nometadata',
+            'odata-version': ''
           }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error response when checking for saved progress: ${errorText}`);
-          return;
         }
+      );
 
-        const data = await response.json();
-        console.log("Saved progress check response:", data);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error response when checking for saved progress: ${errorText}`);
+        return;
+      }
 
-        if (data.value && data.value.length > 0) {
-          // Found saved progress
-          const savedProgress = data.value[0];
-          console.log("Found saved progress:", savedProgress);
+      const data = await response.json();
+      console.log("Saved progress check response:", data);
 
-          this.setState({
-            hasSavedProgress: true,
-            savedProgressId: savedProgress.Id
-          });
+      if (data.value && data.value.length > 0) {
+        // Found saved progress
+        const savedProgress = data.value[0];
+        console.log("Found saved progress:", savedProgress);
 
-          // Only show resume dialog in read mode and on start page
-          if (this.state.showStartPage) {
-            this.setState({ showResumeDialog: true });
-          }
-        } else {
-          console.log("No saved progress found");
+        this.setState({
+          hasSavedProgress: true,
+          savedProgressId: savedProgress.Id
+        });
+
+        // Only show resume dialog in read mode and on start page
+        if (this.state.showStartPage) {
+          this.setState({ showResumeDialog: true });
         }
-      } catch (error) {
-        console.error('Error in API call when checking for saved progress:', error);
+      } else {
+        console.log("No saved progress found");
       }
     } catch (error) {
       console.error('Error checking for saved progress:', error);
     }
   };
+
+
 
   /**
    * Resumes a previously saved quiz session from SharePoint
@@ -1359,7 +1364,6 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         { Title: 'UserName', FieldTypeKind: 2 }, // Text field
         { Title: 'UserEmail', FieldTypeKind: 2 }, // Text field
         { Title: 'UserId', FieldTypeKind: 2 }, // Text field (UPN/Login Name)
-        { Title: 'SharePointUserId', FieldTypeKind: 9 }, // Number field (SharePoint User ID)
         { Title: 'QuizTitle', FieldTypeKind: 2 }, // Text field
         { Title: 'QuestionDetails', FieldTypeKind: 3 }, // Multi-line text field
         { Title: 'QuestionsAnswered', FieldTypeKind: 9 }, // Number field
@@ -1502,43 +1506,40 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
     detailedResults: IDetailedQuizResults
   ): Promise<void> => {
     try {
-      // Check if HTTP trigger is enabled
       if (!this.props.enableHttpTrigger || !this.props.httpTriggerUrl) {
         return;
       }
-  
-      // Use passingScore as the threshold instead of httpTriggerScoreThreshold
+
       const threshold = this.props.passingScore || 70;
-  
-      // Only send trigger if score meets threshold
+
       if (scorePercentage < threshold) {
         console.log(`Score ${scorePercentage}% is below HTTP trigger threshold ${threshold}%`);
         return;
       }
-  
+
       console.log(`Score ${scorePercentage}% meets HTTP trigger threshold ${threshold}%. Preparing to send trigger...`);
-  
-      // Create HTTP trigger service
+
       const httpTriggerService = new HttpTriggerService(this.props.context);
-  
-      // Prepare trigger configuration - use timeLimit for timeout (convert from minutes to seconds)
+
       const triggerConfig: IHttpTriggerConfig = {
         url: this.props.httpTriggerUrl,
         method: this.props.httpTriggerMethod || 'POST',
-        timeout: this.props.timeLimit ? Math.max(this.props.timeLimit, 30) : 30, // Use timeLimit (in seconds) or default to 30
+        timeout: this.props.timeLimit ? Math.max(this.props.timeLimit, 30) : 30,
         includeUserData: this.props.httpTriggerIncludeUserData !== false,
         customHeaders: this.props.httpTriggerCustomHeaders
       };
-  
-      // Prepare quiz result data for trigger
+
+      // Get the user's Entra ID from context (no Graph API needed!)
+      const userEntraId = this.getCurrentUserEntraId();
       const currentUser = this.props.context.pageContext.user;
+
+      // Prepare quiz result data for trigger
       const quizResult: IQuizResult = {
         Title: `Quiz Result - ${new Date().toLocaleDateString()}`,
-        UserName: currentUser.displayName || 'Anonymous',
-        // FIXED: Use Entra ID instead of UPN for UserId
-        UserId: this.props.context.pageContext.legacyPageContext?.userId?.toString() || 'Unknown',
+        UserName: 'Anonymous',
+        // FIXED: Use Entra ID from context instead of SharePoint User ID
+        UserId: userEntraId || 'Unknown',
         UserEmail: currentUser.email || 'Not provided',
-        SharePointUserId: this.props.context.pageContext.legacyPageContext?.userId || undefined,
         QuizTitle: this.props.title || 'SharePoint Quiz',
         Score: this.state.score,
         TotalPoints: this.state.totalPoints,
@@ -1548,25 +1549,24 @@ export default class Quiz extends React.Component<IQuizProps, IQuizState> {
         QuestionDetails: JSON.stringify(detailedResults.questionResults),
         ResultDate: new Date().toISOString()
       };
-  
-      // Send HTTP trigger with simplified payload (no quiz data)
+
       const triggerSent = await httpTriggerService.sendHighScoreTrigger(
         quizResult,
         triggerConfig,
         threshold
       );
-  
+
       if (triggerSent) {
         console.log('HTTP trigger sent successfully for high score achievement');
       } else {
         console.warn('Failed to send HTTP trigger for high score achievement');
       }
-  
+
     } catch (error) {
       console.error('Error in checkAndSendHttpTrigger:', error);
     }
-  };// Update the checkAndSendHttpTrigger method in Quiz.tsx to use timeLimit for timeout
-  
+  };
+
 
   private handleRetakeQuiz = (): void => {
     const resetQuestions = this.state.originalQuestions.map(q => ({
